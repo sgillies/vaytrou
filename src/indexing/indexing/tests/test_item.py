@@ -22,3 +22,10 @@ def test_polygon_bbox():
             geometry={'type': 'Polygon', 'coordinates': (((-1.0, 0.0), (0.0, 1.0), (1.0, 0.0), (0.0, -1.0)),)})
     assert o.bbox == (-1.0, -1.0, 1.0, 1.0)
 
+def test_multipolygon_bbox():
+    o = Item(
+            id='1', 
+            geometry={'type': 'MultiPolygon', 'coordinates': ((((-1.0, 0.0), (0.0, 1.0), (1.0, 0.0), (0.0, -1.0)),),)})
+    assert o.bbox == (-1.0, -1.0, 1.0, 1.0)
+
+

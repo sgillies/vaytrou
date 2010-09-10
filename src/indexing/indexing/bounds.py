@@ -35,7 +35,7 @@ class Bounds2M(Bounds):
         for p in o.coordinates:
             for q in p:
                 a, b = zip(*q)
-                x += [min(a), min(a)]
+                x += [min(a), max(a)]
                 y += [min(b), max(b)]
         return x, y
 
