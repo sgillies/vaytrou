@@ -1,9 +1,9 @@
 from unittest import TestCase
 
-from indexing import ChangeSet, Index, IndexingError, UnindexingError
+from indexing import ChangeSet, BaseIndex, IndexingError, UnindexingError
 from indexing import BatchError, UnrecoveredBatchError
 
-class AnyIndex(Index):
+class AnyIndex(BaseIndex):
     def index_item(self, item):
         pass
     def unindex_item(self, item):
@@ -21,7 +21,7 @@ class BatchingTestCase(TestCase):
         self.assertEquals(set.additions_made, set.additions)
         self.assertEquals(set.deletions_made, set.deletions)
 
-class UnluckyIndex(Index):
+class UnluckyIndex(BaseIndex):
     def index_item(self, item):
         if item == 13:
             raise IndexingError
@@ -43,17 +43,17 @@ class UnluckyBatchingTestCase(TestCase):
         self.assertEquals(set.additions_made, [1, 2, 3])
         self.assertEquals(set.deletions_made, [4])
 
-class HotelCaliforniaIndex(Index):
+class HotelCaliforniaIndex(BaseIndex):
     def index_item(self, item):
         pass
     def unindex_item(self, item):
-        if item == 13:
+        if item in [13, 14]:
             raise IndexingError
 
 class UnrecoverableBatchingTestCase(TestCase):
     def test_unrecoverable(self):
         idx = HotelCaliforniaIndex(None)
-        set = ChangeSet(additions=[1,2,13], deletions=[4,13,6])
+        set = ChangeSet(additions=[1,2,13], deletions=[4,14,6])
         self.assertRaises(UnrecoveredBatchError, idx.batch, set)
         self.assertEquals(set.additions_made, [1, 2, 13])
         self.assertEquals(set.deletions_made, [4])
