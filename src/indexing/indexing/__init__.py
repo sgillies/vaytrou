@@ -18,6 +18,21 @@ class ChangeSet(object):
         self.deletions_made = []
         self.no_ops = []
 
+class IndexingError(Exception):
+    pass
+
+class UnindexingError(Exception):
+    pass
+
+class BatchError(Exception):
+    pass
+
+class UnrecoveredBatchError(BatchError):
+    def __init__(self, msg, unrecovered_additions, unrecovered_deletions):
+        self.msg = msg
+        self.additions = unrecovered_additions
+        self.deletions = unrecovered_deletions
+
 class Index(object):
     def __init__(self, index):
         self.index = index
@@ -34,14 +49,19 @@ class Index(object):
             for d in changeset.deletions:
                 self.unindex_item(d)
                 changeset.deletions_made.append(d)
-        except:
-            undone_additions = [
+        except (IndexingError, UnindexingError):
+            # undo
+            try:
+                undone_additions = [
                     m for m in changeset.additions_made \
                     if not self.unindex_item(m)]
-            undone_deletions = [
+                undone_deletions = [
                     n for n in changeset.deletions_made \
-                    if not self.unindex_item(n)]
-            assert m == changesets.additions_made
-            assert n == changesets.deletions_made
-            raise
+                    if not self.index_item(n)]
+            except (IndexingError, UnindexingError):
+                raise UnrecoveredBatchError(
+                    "Index state not recovered.", 
+                    set(changeset.additions_made) - set(undone_additions),
+                    set(changeset.deletions_made) - set(undone_deletions))
+            raise BatchError("Index state recovered.")
         return 1 
