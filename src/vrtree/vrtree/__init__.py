@@ -40,8 +40,6 @@ class VRtreeIndex(BaseIndex):
         """Return an iterator over the nearest N=limit Items to the bbox"""
         for hit in self.rtree.nearest(bbox, limit):
             yield self.bwd[int(hit-2**32)]
-            #except TypeError:
-            #    continue
     def index_item(self, item):
         """Add an Item to the index"""
         intid = hash(item.id)
