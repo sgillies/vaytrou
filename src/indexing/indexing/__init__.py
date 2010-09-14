@@ -82,4 +82,3 @@ class BaseIndex(object):
                     set(changeset.additions_made) - set(undone_additions),
                     set(changeset.deletions_made) - set(undone_deletions))
             raise BatchError("Index state recovered.")
-        return 1 

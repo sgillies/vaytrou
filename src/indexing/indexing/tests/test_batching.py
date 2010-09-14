@@ -13,11 +13,11 @@ class BatchingTestCase(TestCase):
     def test_empty_changeset(self):
         idx = AnyIndex(None)
         set = ChangeSet()
-        self.assertEquals(idx.batch(set), 1)
+        self.assertEquals(idx.batch(set), None)
     def test_noproblem_changeset(self):
         idx = AnyIndex(None)
         set = ChangeSet(additions=[1,2,3], deletions=[4,5,6])
-        self.assertEquals(idx.batch(set), 1)
+        self.assertEquals(idx.batch(set), None)
         self.assertEquals(set.additions_made, set.additions)
         self.assertEquals(set.deletions_made, set.deletions)
 
