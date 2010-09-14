@@ -8,21 +8,13 @@ from rtree import Rtree
 
 from vrtree import VRtreeIndex
 
-class BatchingTestCase(TestCase):
-    def setUp(self):
-        self.tmpdir = mkdtemp()
-        self.idxpath = os.path.sep.join([self.tmpdir, 'idx-1'])
-        self.zodbpath = os.path.sep.join([self.tmpdir, 'Data.fs'])
+class VRtreeIndexTestCase(TestCase):
     def test_empty_changeset(self):
-        idx = VRtreeIndex(
-            Rtree(self.idxpath),
-            db_from_uri('file://%s' % self.zodbpath))
+        idx = VRtreeIndex()
         set = ChangeSet()
         self.assertEquals(idx.batch(set), None)
     def test_additions(self):
-        idx = VRtreeIndex(
-            Rtree(self.idxpath),
-            db_from_uri('file://%s' % self.zodbpath))
+        idx = VRtreeIndex()
         additions = [
             Item(**{'id': '1', 
                   'geometry': {'type': 'Point', 'coordinates': (0.0, 0.0)}}),

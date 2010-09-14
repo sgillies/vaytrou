@@ -42,18 +42,20 @@ class UnrecoveredBatchError(BatchError):
         self.deletions = unrecovered_deletions
 
 class BaseIndex(object):
-    def __init__(self, index):
-        self.index = index
+    #def __init__(self):
+    #    self.index = index
+    def intid(self, item):
+        raise NotImplementedError
     def intersection(self, bbox):
         """Return an iterator over Items that intersect with the bbox"""
         raise NotImplementedError
     def nearest(self, bbox, limit=0):
         """Return an iterator over the nearest N=limit Items to the bbox"""
         raise NotImplementedError
-    def index_item(self, item):
+    def index_item(self, itemid, item):
         """Add an Item to the index"""
         raise NotImplementedError
-    def unindex_item(self, item):
+    def unindex_item(self, itemid):
         """Remove an Item from the index"""
         raise NotImplementedError
     def batch(self, changeset):
@@ -61,10 +63,12 @@ class BaseIndex(object):
         # play additions and deletions
         try:
             for a in changeset.additions:
-                self.index_item(a)
+                itemid = self.intid(a)
+                self.index_item(itemid, a)
                 changeset.additions_made.append(a)
             for d in changeset.deletions:
-                self.unindex_item(d)
+                itemid = self.intid(d)
+                self.unindex_item(itemid)
                 changeset.deletions_made.append(d)
         except (IndexingError, UnindexingError):
             # undo
@@ -72,10 +76,10 @@ class BaseIndex(object):
             try:
                 undone_additions[:] = [
                     m for m in changeset.additions_made \
-                    if not self.unindex_item(m)]
+                    if not self.unindex_item(self.intid(m))]
                 undone_deletions[:] = [
                     n for n in changeset.deletions_made \
-                    if not self.index_item(n)]
+                    if not self.index_item(self.intid(n), n)]
             except (IndexingError, UnindexingError):
                 raise UnrecoveredBatchError(
                     "Index state not recovered.", 

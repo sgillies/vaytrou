@@ -18,50 +18,61 @@ def map_item(item):
                 coordinates=item.geometry.coordinates),
             properties=PersistentMapping(item.properties))
 
+OFFSET = 2**32
+
 class VRtreeIndex(BaseIndex):
-    def __init__(self, index, zodb):
-        self.rtree = index
-        self.db = zodb
-        conn = self.db.open()
-        root = conn.root()
-        if not 'app' in root:
-            app = Container()
-            app['fwd'] = OOBTree.OOBTree()
-            app['bwd'] = IOBTree.IOBTree()
-            root['app'] = app
-            transaction.commit()
-        self.fwd = root['app']['fwd']
-        self.bwd = root['app']['bwd']
+    """Rtree requires unsigned long ids. Python's hash() yields signed ints,
+    so we add 2**32 to hashed values for the former, and subtract the same from
+    results of rtree methods."""
+    def clear(self):
+        self.fwd = OOBTree.OOBTree()
+        self.bwd = IOBTree.IOBTree()
+        self.rtree = Rtree()
+    def __init__(self):
+        self.clear()
+#
+#        self.rtree = index
+#        self.db = zodb
+#        conn = self.db.open()
+#        root = conn.root()
+#        if not 'app' in root:
+#            app = Container()
+#            app['fwd'] = OOBTree.OOBTree()
+#            app['bwd'] = IOBTree.IOBTree()
+#            root['app'] = app
+#            transaction.commit()
+#        self.fwd = root['app']['fwd']
+#        self.bwd = root['app']['bwd']a
+    def intid(self, item):
+        return hash(item)
     def intersection(self, bbox):
         """Return an iterator over Items that intersect with the bbox"""
         for hit in self.rtree.intersection(bbox):
-            yield self.bwd[int(hit-2**32)]
+            yield self.bwd[int(hit-OFFSET)]
     def nearest(self, bbox, limit=1):
         """Return an iterator over the nearest N=limit Items to the bbox"""
         for hit in self.rtree.nearest(bbox, limit):
-            yield self.bwd[int(hit-2**32)]
-    def index_item(self, item):
+            yield self.bwd[int(hit-OFFSET)]
+    def index_item(self, itemid, item):
         """Add an Item to the index"""
-        intid = hash(item.id)
-        if intid in self.bwd:
-            self.unindex_item(item)
-        self.rtree.add(intid + 2**32, item.bbox)
+        if itemid in self.bwd:
+            self.unindex_item(itemid, item)
+        self.rtree.add(itemid + OFFSET, item.bbox)
         value = map_item(item)
-        self.bwd[intid] = value
+        self.bwd[itemid] = value
         set = self.fwd.get(value)
         if set is None:
             set = IFBTree.IFTreeSet()
             self.fwd[value] = set
-        set.insert(intid)
-    def unindex_item(self, item):
+        set.insert(itemid)
+    def unindex_item(self, itemid):
         """Remove an Item from the index"""
-        intid = hash(item.id)
-        value = self.bwd.get(intid)
+        value = self.bwd.get(itemid)
         if value is None:
             return
-        self.fwd[value].remove(intid)
-        del self.bwd[intid]
-        self.rtree.delete(intid + 2**32, bbox)
+        self.fwd[value].remove(itemid)
+        del self.bwd[itemid]
+        self.rtree.delete(itemid + OFFSET, value.get('bbox'))
     def batch(self, changeset):
         BaseIndex.batch(self, changeset)
         transaction.commit()
