@@ -5,18 +5,15 @@ from rtree import Rtree
 import transaction
 
 from indexing import BaseIndex
+from indexing.bounds import calc
 
-class Container(PersistentMapping):
-    __parent__ = __name__ = None
+#class Container(PersistentMapping):
+#    __parent__ = __name__ = None
 
-def map_item(item):
-    return PersistentMapping(
-            id=item.id, 
-            bbox=item.bbox, 
-            geometry=PersistentMapping(
-                type=item.geometry.type, 
-                coordinates=item.geometry.coordinates),
-            properties=PersistentMapping(item.properties))
+#def map_item(item):
+#    return PersistentMapping(geo_interface(item))
+#def persist(item):
+#    return PersistentMapping(item)
 
 OFFSET = 2**32
 
@@ -25,11 +22,10 @@ class VRtreeIndex(BaseIndex):
     so we add 2**32 to hashed values for the former, and subtract the same from
     results of rtree methods."""
     def clear(self):
-        self.bwd = IOBTree.IOBTree()
+        self.bwd = OOBTree.OOBTree()
         self.fwd = Rtree()
     def __init__(self):
         self.clear()
-#
 #        self.rtree = index
 #        self.db = zodb
 #        conn = self.db.open()
@@ -43,35 +39,36 @@ class VRtreeIndex(BaseIndex):
 #        self.fwd = root['app']['fwd']
 #        self.bwd = root['app']['bwd']a
     def intid(self, item):
-        return hash(item)
+        return hash(item['id']) + OFFSET
     def intersection(self, bbox):
         """Return an iterator over Items that intersect with the bbox"""
-        for hit in self.fwd.intersection(bbox):
-            yield self.bwd[int(hit-OFFSET)]
+        for hit in self.fwd.intersection(bbox, True):
+            yield self.bwd[(hit.id, tuple(hit.bbox))]
     def nearest(self, bbox, limit=1):
         """Return an iterator over the nearest N=limit Items to the bbox"""
-        for hit in self.fwd.nearest(bbox, limit):
-            yield self.bwd[int(hit-OFFSET)]
-    def index_item(self, itemid, item):
+        for hit in self.fwd.nearest(bbox, limit, True):
+            yield self.bwd[(hit.id, tuple(hit.bbox))]
+    def index_item(self, itemid, bbox, item):
         """Add an Item to the index"""
-        if itemid in self.bwd:
-            self.unindex_item(itemid, item)
-        self.fwd.add(itemid + OFFSET, item.bbox)
-        value = map_item(item)
-        self.bwd[itemid] = value
+        if (itemid, bbox) in self.bwd:
+            self.unindex_item(itemid, bbox)
+        self.fwd.add(itemid, bbox)
+        self.bwd[(itemid, bbox)] = item
         #set = self.fwd.get(value)
         #if set is None:
         #    set = IFBTree.IFTreeSet()
         #    self.fwd[value] = set
         #set.insert(itemid)
-    def unindex_item(self, itemid):
+    def unindex_item(self, itemid, bbox):
         """Remove an Item from the index"""
-        value = self.bwd.get(itemid)
+        #import pdb; pdb.set_trace()
+        value = self.bwd.get((itemid, bbox))
         if value is None:
             return
         #self.fwd[value].remove(itemid)
-        del self.bwd[itemid]
-        self.fwd.delete(itemid + OFFSET, value.get('bbox'))
+        import pdb; pdb.set_trace()
+        del self.bwd[(itemid, bbox)]
+        self.fwd.delete(itemid, bbox)
     def batch(self, changeset):
         BaseIndex.batch(self, changeset)
         transaction.commit()

@@ -13,16 +13,25 @@ class Item(Feature):
 class ConflictError(Exception):
     pass
 
+def bbox(o):
+    return o.get('bbox') or calc[o['geometry']['type']](o['geometry'])
+
+def f(o):
+    return dict(o, bbox=bbox(o))
+
+def key(o):
+    return (o['id'], o['bbox'])
+
 class ChangeSet(object):
     def __init__(self, additions=None, deletions=None):
         """If additions and deletions intersect, a ConflictError will be raised.
         """
-        self.additions = additions or []
+        self.additions = [f(a) for a in additions or []]
         self.additions_made = []
-        self.deletions = deletions or []
+        self.deletions = [f(d) for d in deletions or []]
         self.deletions_made = []
         self.no_ops = []
-        if set(self.additions).intersection(set(self.deletions)):
+        if set([key(a) for a in self.additions]).intersection(set([key(d) for d in self.deletions])):
             raise ConflictError(
                 "check intersection of additions and deletions in changeset.")
 
@@ -46,16 +55,18 @@ class BaseIndex(object):
     #    self.index = index
     def intid(self, item):
         raise NotImplementedError
+    def bbox(self, item):
+        return bbox(item)
     def intersection(self, bbox):
         """Return an iterator over Items that intersect with the bbox"""
         raise NotImplementedError
     def nearest(self, bbox, limit=0):
         """Return an iterator over the nearest N=limit Items to the bbox"""
         raise NotImplementedError
-    def index_item(self, itemid, item):
+    def index_item(self, itemid, bbox, item):
         """Add an Item to the index"""
         raise NotImplementedError
-    def unindex_item(self, itemid):
+    def unindex_item(self, itemid, bbox):
         """Remove an Item from the index"""
         raise NotImplementedError
     def batch(self, changeset):
@@ -63,12 +74,10 @@ class BaseIndex(object):
         # play additions and deletions
         try:
             for a in changeset.additions:
-                itemid = self.intid(a)
-                self.index_item(itemid, a)
+                self.index_item(self.intid(a), self.bbox(a), a)
                 changeset.additions_made.append(a)
             for d in changeset.deletions:
-                itemid = self.intid(d)
-                self.unindex_item(itemid)
+                self.unindex_item(self.intid(a), self.bbox(a))
                 changeset.deletions_made.append(d)
         except (IndexingError, UnindexingError):
             # undo
@@ -76,10 +85,10 @@ class BaseIndex(object):
             try:
                 undone_additions[:] = [
                     m for m in changeset.additions_made \
-                    if not self.unindex_item(self.intid(m))]
+                    if not self.unindex_item(self.intid(m), self.bbox(m))]
                 undone_deletions[:] = [
                     n for n in changeset.deletions_made \
-                    if not self.index_item(self.intid(n), n)]
+                    if not self.index_item(self.intid(n), self.bbox(n), n)]
             except (IndexingError, UnindexingError):
                 raise UnrecoveredBatchError(
                     "Index state not recovered.", 
