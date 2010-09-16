@@ -5,10 +5,10 @@ from geojson import Feature
 from indexing.bounds import calc
 
 
-class Item(Feature):
-    @property
-    def bbox(self):
-        return calc[self.geometry.type](self.geometry)
+#class Item(Feature):
+#    @property
+#    def bbox(self):
+#        return calc[self.geometry.type](self.geometry)
 
 class ConflictError(Exception):
     pass
@@ -49,6 +49,8 @@ class UnrecoveredBatchError(BatchError):
         self.msg = msg
         self.additions = unrecovered_additions
         self.deletions = unrecovered_deletions
+    def __repr__(self):
+        return '%s: %s, %s' % (self.msg, self.additions, self.deletions)
 
 class BaseIndex(object):
     #def __init__(self):
@@ -69,6 +71,10 @@ class BaseIndex(object):
     def unindex_item(self, itemid, bbox):
         """Remove an Item from the index"""
         raise NotImplementedError
+    def diff(self, sa, sb):
+        dd = set([tuple(a.items()) for a in sa]) \
+           - set([tuple(b.items()) for b in sb])
+        return [dict(d) for d in dd]
     def batch(self, changeset):
         """Execute an all-or-nothing batch of index additions and deletions"""
         # play additions and deletions
@@ -77,7 +83,7 @@ class BaseIndex(object):
                 self.index_item(self.intid(a), self.bbox(a), a)
                 changeset.additions_made.append(a)
             for d in changeset.deletions:
-                self.unindex_item(self.intid(a), self.bbox(a))
+                self.unindex_item(self.intid(d), self.bbox(d))
                 changeset.deletions_made.append(d)
         except (IndexingError, UnindexingError):
             # undo
@@ -92,6 +98,6 @@ class BaseIndex(object):
             except (IndexingError, UnindexingError):
                 raise UnrecoveredBatchError(
                     "Index state not recovered.", 
-                    set(changeset.additions_made) - set(undone_additions),
-                    set(changeset.deletions_made) - set(undone_deletions))
+                    self.diff(changeset.additions_made, undone_additions),
+                    self.diff(changeset.deletions_made, undone_deletions))
             raise BatchError("Index state recovered.")

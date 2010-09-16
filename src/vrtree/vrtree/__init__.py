@@ -61,12 +61,10 @@ class VRtreeIndex(BaseIndex):
         #set.insert(itemid)
     def unindex_item(self, itemid, bbox):
         """Remove an Item from the index"""
-        #import pdb; pdb.set_trace()
         value = self.bwd.get((itemid, bbox))
         if value is None:
             return
         #self.fwd[value].remove(itemid)
-        import pdb; pdb.set_trace()
         del self.bwd[(itemid, bbox)]
         self.fwd.delete(itemid, bbox)
     def batch(self, changeset):
