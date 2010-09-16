@@ -2,7 +2,7 @@ import os
 from tempfile import mkdtemp
 from unittest import TestCase
 
-from indexing import ChangeSet, Item
+from indexing import ChangeSet
 from repoze.zodbconn.uri import db_from_uri
 from rtree import Rtree
 

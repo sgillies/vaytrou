@@ -1,44 +1,26 @@
 #
-from BTrees import IFBTree, IOBTree, OOBTree
-from persistent.mapping import PersistentMapping
+from BTrees import OOBTree
 from rtree import Rtree
 import transaction
 
 from indexing import BaseIndex
-from indexing.bounds import calc
-
-#class Container(PersistentMapping):
-#    __parent__ = __name__ = None
-
-#def map_item(item):
-#    return PersistentMapping(geo_interface(item))
-#def persist(item):
-#    return PersistentMapping(item)
 
 OFFSET = 2**32
 
 class VRtreeIndex(BaseIndex):
-    """Rtree requires unsigned long ids. Python's hash() yields signed ints,
-    so we add 2**32 to hashed values for the former, and subtract the same from
-    results of rtree methods."""
+    """An index with an R-tree as the forward mapping and a B-tree as the
+    backward mapping
+
+    Modeled after the example at http://docs.zope.org/zope.catalog/index.html.
+    """
     def clear(self):
-        self.bwd = OOBTree.OOBTree()
         self.fwd = Rtree()
+        self.bwd = OOBTree.OOBTree()
     def __init__(self):
         self.clear()
-#        self.rtree = index
-#        self.db = zodb
-#        conn = self.db.open()
-#        root = conn.root()
-#        if not 'app' in root:
-#            app = Container()
-#            app['fwd'] = OOBTree.OOBTree()
-#            app['bwd'] = IOBTree.IOBTree()
-#            root['app'] = app
-#            transaction.commit()
-#        self.fwd = root['app']['fwd']
-#        self.bwd = root['app']['bwd']a
     def intid(self, item):
+        """Rtree requires unsigned long ids. Python's hash() yields signed ints,
+        so we add 2**32 to hashed values for the former."""
         return hash(item['id']) + OFFSET
     def intersection(self, bbox):
         """Return an iterator over Items that intersect with the bbox"""
@@ -54,17 +36,11 @@ class VRtreeIndex(BaseIndex):
             self.unindex_item(itemid, bbox)
         self.fwd.add(itemid, bbox)
         self.bwd[(itemid, bbox)] = item
-        #set = self.fwd.get(value)
-        #if set is None:
-        #    set = IFBTree.IFTreeSet()
-        #    self.fwd[value] = set
-        #set.insert(itemid)
     def unindex_item(self, itemid, bbox):
         """Remove an Item from the index"""
         value = self.bwd.get((itemid, bbox))
         if value is None:
             return
-        #self.fwd[value].remove(itemid)
         del self.bwd[(itemid, bbox)]
         self.fwd.delete(itemid, bbox)
     def batch(self, changeset):

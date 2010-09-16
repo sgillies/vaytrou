@@ -1,37 +1,27 @@
 #
 
-from geojson import Feature
+from indexing.bounds import bbox
 
-from indexing.bounds import calc
-
-
-#class Item(Feature):
-#    @property
-#    def bbox(self):
-#        return calc[self.geometry.type](self.geometry)
 
 class ConflictError(Exception):
     pass
-
-def bbox(o):
-    return o.get('bbox') or calc[o['geometry']['type']](o['geometry'])
-
-def f(o):
-    return dict(o, bbox=bbox(o))
 
 def key(o):
     return (o['id'], o['bbox'])
 
 class ChangeSet(object):
+    """Atomic group of items to be indexed or unindexed
+    """
     def __init__(self, additions=None, deletions=None):
         """If additions and deletions intersect, a ConflictError will be raised.
         """
-        self.additions = [f(a) for a in additions or []]
+        self.additions = [dict(a, bbox=bbox(a)) for a in additions or []]
         self.additions_made = []
-        self.deletions = [f(d) for d in deletions or []]
+        self.deletions = [dict(d, bbox=bbox(d)) for d in deletions or []]
         self.deletions_made = []
         self.no_ops = []
-        if set([key(a) for a in self.additions]).intersection(set([key(d) for d in self.deletions])):
+        if set([key(a) for a in self.additions]).intersection(
+            set([key(d) for d in self.deletions])):
             raise ConflictError(
                 "check intersection of additions and deletions in changeset.")
 
@@ -53,25 +43,39 @@ class UnrecoveredBatchError(BatchError):
         return '%s: %s, %s' % (self.msg, self.additions, self.deletions)
 
 class BaseIndex(object):
-    #def __init__(self):
-    #    self.index = index
+    """Base class for indexes
+    
+    Deals in GeoJSON-like dicts we will call ``items``, like:
+
+      {'id': 'db441f41-ec34-40fb-9f62-28b5a9f2f0e5',    # required
+       'bbox': (0.0, 0.0, 1.0, 1.0),                    # recommended
+       'geometry':                                      # required
+         {'type': 'LineString', 'coordinates': ((0.0, 0.0), (1.0, 1.0))},
+       'properties': { ... }                            # optional
+       ... }
+
+    """
     def intid(self, item):
+        """Return a unique integer id for the item"""
         raise NotImplementedError
     def bbox(self, item):
+        """Return a (minx, miny, maxx, maxy) tuple for the item"""
         return bbox(item)
     def intersection(self, bbox):
-        """Return an iterator over Items that intersect with the bbox"""
+        """Return an iterator over items that intersect with the bbox"""
         raise NotImplementedError
     def nearest(self, bbox, limit=0):
-        """Return an iterator over the nearest N=limit Items to the bbox"""
+        """Return an iterator over the nearest N=limit items to the bbox"""
         raise NotImplementedError
     def index_item(self, itemid, bbox, item):
-        """Add an Item to the index"""
+        """Index item using unique integer itemid and bbox as key"""
         raise NotImplementedError
     def unindex_item(self, itemid, bbox):
-        """Remove an Item from the index"""
+        """Unindex the item with (itemid, bbox) as key"""
         raise NotImplementedError
     def diff(self, sa, sb):
+        """Return a representation of the difference between two sequences of 
+        items"""
         dd = set([tuple(a.items()) for a in sa]) \
            - set([tuple(b.items()) for b in sb])
         return [dict(d) for d in dd]
