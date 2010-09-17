@@ -54,5 +54,6 @@ calc = {
 def bbox(o):
     """Get (minx, miny, maxx, maxy) bounding box of an item from its bbox or
     geometry item"""
-    return o.get('bbox') or calc[o['geometry']['type']](o['geometry'])
+    return tuple(
+        map(float, o.get('bbox') or calc[o['geometry']['type']](o['geometry'])))
 

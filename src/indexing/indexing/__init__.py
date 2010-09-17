@@ -7,7 +7,7 @@ class ConflictError(Exception):
     pass
 
 def key(o):
-    return (o['id'], o['bbox'])
+    return (o['id'], tuple(o['bbox']))
 
 class ChangeSet(object):
     """Atomic group of items to be indexed or unindexed

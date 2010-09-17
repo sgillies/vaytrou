@@ -24,11 +24,11 @@ class RtreeIndex(BaseIndex):
         return hash(item['id']) + OFFSET
     def intersection(self, bbox):
         """Return an iterator over Items that intersect with the bbox"""
-        for hit in self.fwd.intersection(bbox, True):
+        for hit in self.fwd.intersection(bbox, objects=True):
             yield self.bwd[(hit.id, tuple(hit.bbox))]
     def nearest(self, bbox, limit=1):
         """Return an iterator over the nearest N=limit Items to the bbox"""
-        for hit in self.fwd.nearest(bbox, limit, True):
+        for hit in self.fwd.nearest(bbox, num_results=limit, objects=True):
             yield self.bwd[(hit.id, tuple(hit.bbox))]
     def index_item(self, itemid, bbox, item):
         """Add an Item to the index"""
