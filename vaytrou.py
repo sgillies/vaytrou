@@ -1,3 +1,4 @@
+import logging
 import os
 
 from repoze.zodbconn.finder import PersistentApplicationFinder
@@ -5,6 +6,7 @@ from rtree import Rtree
 from simplejson import dumps, loads
 import tornado.httpserver
 import tornado.ioloop
+from tornado.options import parse_config_file, parse_command_line
 import tornado.web
 
 from indexing import BatchError, ChangeSet, ConflictError
@@ -88,9 +90,14 @@ application = tornado.web.Application([
 ])
 
 if __name__ == "__main__":
-    finder = PersistentApplicationFinder(
-        'file://%s/var/Data.fs' % os.path.dirname(os.path.abspath(__file__)), 
-        appmaker)
+    parse_config_file('etc/server.conf')
+    parse_command_line()
+    cwd = os.path.dirname(os.path.abspath(__file__))
+    #logging.basicConfig(level=logging.DEBUG,
+    #                format='%(asctime)s %(levelname)s %(message)s',
+    #                filename='%s/log/v1.log' % cwd,
+    #                filemode='w')
+    finder = PersistentApplicationFinder('file://%s/var/Data.fs' % cwd, appmaker)
     environ = {}
     index = finder(environ)
     index.fwd = Rtree('var/v1')
