@@ -25,7 +25,7 @@ index = None
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        self.write("index has %s items\n" % len(index.bwd))
+        self.write('index has %s items\n' % len(index.bwd))
     def post(self):
         try:
             data = loads(self.request.body)
@@ -44,7 +44,7 @@ class MainHandler(tornado.web.RequestHandler):
 
 class IntersectionHandler(tornado.web.RequestHandler):
     def get(self):
-        """Perform intersection search"""
+        '''Perform intersection search'''
         try:
             bbox = self.get_argument('bbox')
             coords = tuple(float(x) for x in bbox.split(','))
@@ -57,7 +57,7 @@ class IntersectionHandler(tornado.web.RequestHandler):
 
 class NearestHandler(tornado.web.RequestHandler):
     def get(self):
-        """Perform intersection search"""
+        '''Perform intersection search'''
         try:
             bbox = self.get_argument('bbox')
             coords = tuple(float(x) for x in bbox.split(','))
@@ -85,15 +85,18 @@ class BatchHandler(tornado.web.RequestHandler):
             raise
             
 application = tornado.web.Application([
-    (r"/", MainHandler),
-    (r"/intersection", IntersectionHandler),
-    (r"/nearest", NearestHandler),
+    (r'/', MainHandler),
+    (r'/intersection', IntersectionHandler),
+    (r'/nearest', NearestHandler),
 ])
 
-define("data_directory", default=None, help="Data storage directory")
-define("index_name", default="v1", help="R-tree index name")
+define('data_directory', default=None, help='Data storage directory')
+define('index_name', default='v1', help='R-tree index name')
 
-if __name__ == "__main__":
+# TODO: above goes into a module, below into a script for which we properly
+# manage egg paths
+
+if __name__ == '__main__':
     parse_config_file('etc/server.conf')
     parse_command_line()
     finder = PersistentApplicationFinder(
@@ -108,7 +111,7 @@ if __name__ == "__main__":
         loop.start()
     except KeyboardInterrupt:
         loop.stop()
-        print "Exiting."
+        print 'Exiting.'
     finally:
         index.fwd.close()
 
