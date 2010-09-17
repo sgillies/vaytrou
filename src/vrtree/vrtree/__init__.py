@@ -7,7 +7,7 @@ from indexing import BaseIndex
 
 OFFSET = 2**32
 
-class VRtreeIndex(BaseIndex):
+class RtreeIndex(BaseIndex):
     """An index with an R-tree as the forward mapping and a B-tree as the
     backward mapping
 
@@ -46,3 +46,10 @@ class VRtreeIndex(BaseIndex):
     def batch(self, changeset):
         BaseIndex.batch(self, changeset)
         transaction.commit()
+
+class VRtreeIndex(RtreeIndex):
+    """Variant that expects the foward Rtree to be set by a caller"""
+    def clear(self):
+        self.fwd = None
+        self.bwd = OOBTree.OOBTree()
+    
