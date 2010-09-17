@@ -6,6 +6,7 @@ from rtree import Rtree
 from simplejson import dumps, loads
 import tornado.httpserver
 import tornado.ioloop
+from tornado.options import define, options
 from tornado.options import parse_config_file, parse_command_line
 import tornado.web
 
@@ -89,18 +90,17 @@ application = tornado.web.Application([
     (r"/nearest", NearestHandler),
 ])
 
+define("data_directory", default=None, help="Data storage directory")
+define("index_name", default="v1", help="R-tree index name")
+
 if __name__ == "__main__":
     parse_config_file('etc/server.conf')
     parse_command_line()
-    cwd = os.path.dirname(os.path.abspath(__file__))
-    #logging.basicConfig(level=logging.DEBUG,
-    #                format='%(asctime)s %(levelname)s %(message)s',
-    #                filename='%s/log/v1.log' % cwd,
-    #                filemode='w')
-    finder = PersistentApplicationFinder('file://%s/var/Data.fs' % cwd, appmaker)
+    finder = PersistentApplicationFinder(
+        'file://%s/Data.fs' % options.data_directory, appmaker)
     environ = {}
     index = finder(environ)
-    index.fwd = Rtree('var/v1')
+    index.fwd = Rtree('%s/%s' % (options.data_directory, options.index_name))
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(8888)
     try:
