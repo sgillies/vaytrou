@@ -91,7 +91,6 @@ application = tornado.web.Application([
 ])
 
 define('data_directory', default=None, help='Data storage directory')
-define('index_name', default='v1', help='R-tree index name')
 
 # TODO: above goes into a module, below into a script for which we properly
 # manage egg paths
@@ -103,7 +102,7 @@ if __name__ == '__main__':
         'file://%s/Data.fs' % options.data_directory, appmaker)
     environ = {}
     index = finder(environ)
-    index.fwd = Rtree('%s/%s' % (options.data_directory, options.index_name))
+    index.fwd = Rtree('%s/vrt1' % options.data_directory)
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(8888)
     try:

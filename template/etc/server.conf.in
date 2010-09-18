@@ -1,3 +1,18 @@
+# Vaytrou server configuration
+# ============================
+
+# Logging
+# -------
+#
+# Log file prefix: 
+# log_file_prefix = "/var/log/vaytrou.log"
 log_file_prefix = "${log_file_prefix}"
+
+# Storage
+# -------
+# 
+# Data storage directory: location for persisted data. Must be writeable
+# by the server process.
+# data_directory = "/var/vaytrou/data"
 data_directory = "${data_directory}"
-index_name = "${index_name}"
+
