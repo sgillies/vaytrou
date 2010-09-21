@@ -69,21 +69,6 @@ class NearestHandler(tornado.web.RequestHandler):
         except:
             raise
 
-class BatchHandler(tornado.web.RequestHandler):
-    def post(self):
-        try:
-            data = loads(self.request.body)
-            index.batch(additions=data['index'], deletions=data['unindex'])
-            self.set_status(200)
-            self.set_header('content-type', 'application/json')
-            self.write(dumps(dict(msg='Batch success')))
-        except BatchError as error:
-            self.set_status(409)
-            self.set_header('content-type', 'application/json')
-            self.write(dumps(dict(msg=str(error))))
-        except:            
-            raise
-            
 application = tornado.web.Application([
     (r'/', MainHandler),
     (r'/intersection', IntersectionHandler),
