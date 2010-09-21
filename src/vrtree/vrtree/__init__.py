@@ -1,55 +1,89 @@
-#
-from BTrees import OOBTree
+import random
+
+import BTrees
 from rtree import Rtree
 import transaction
 
 from indexing import BaseIndex
 
-OFFSET = 2**32
-
-class RtreeIndex(BaseIndex):
-    """An index with an R-tree as the forward mapping and a B-tree as the
-    backward mapping
-
-    Modeled after the example at http://docs.zope.org/zope.catalog/index.html.
+class IntRtreeIndex(BaseIndex):
+    """Avoids the slower Rtree query object=True interface
     """
+    _v_nextuid = None
+    family = BTrees.family32
+
     def clear(self):
         self.fwd = Rtree()
-        self.bwd = OOBTree.OOBTree()
+        self.bwd = self.family.OO.BTree()
+        self.keys = self.family.IO.BTree()
+        self.ids = self.family.OI.BTree()
     def __init__(self):
         self.clear()
+    def key(self, item):
+        try:
+            return item['id'], tuple(self.bbox(item))
+        except:
+            return tuple(item.items())
     def intid(self, item):
-        """Rtree requires unsigned long ids. Python's hash() yields signed ints,
-        so we add 2**32 to hashed values for the former."""
-        return hash(item['id']) + OFFSET
+        # Get and track next available key using zope.intid algorithm
+        # Item might be already registered
+        uid = self.ids.get(self.key(item))
+        if uid is not None:
+            return uid
+        # But if not registered
+        nextuid = getattr(self, '_v_nextuid', None)
+        while True:
+            if nextuid is None:
+                nextuid = random.randrange(0, self.family.maxint)
+            uid = nextuid
+            if uid not in self.keys:
+                nextuid += 1
+                if nextuid > self.family.maxint:
+                    nextuid = None
+                self._v_nextuid = nextuid
+                return uid
+            nextuid = None
     def intersection(self, bbox):
         """Return an iterator over Items that intersect with the bbox"""
-        for hit in self.fwd.intersection(bbox, objects=True):
-            yield self.bwd[(hit.id, tuple(hit.bbox))]
+        for hit in self.fwd.intersection(bbox, objects=False):
+            yield self.bwd[int(hit)]
     def nearest(self, bbox, limit=1):
         """Return an iterator over the nearest N=limit Items to the bbox"""
-        for hit in self.fwd.nearest(bbox, num_results=limit, objects=True):
-            yield self.bwd[(hit.id, tuple(hit.bbox))]
+        for hit in self.fwd.nearest(bbox, num_results=limit, objects=False):
+            yield self.bwd[int(hit)]
     def index_item(self, itemid, bbox, item):
         """Add an Item to the index"""
-        if (itemid, bbox) in self.bwd:
+        if itemid in self.bwd:
             self.unindex_item(itemid, bbox)
+        key = self.key(item)
+        self.keys[itemid] = key
+        self.ids[key] = itemid
+        self.bwd[itemid] = item
         self.fwd.add(itemid, bbox)
-        self.bwd[(itemid, bbox)] = item
     def unindex_item(self, itemid, bbox):
         """Remove an Item from the index"""
-        value = self.bwd.get((itemid, bbox))
-        if value is None:
+        key = self.keys.get(itemid)
+        if key is None:
             return
-        del self.bwd[(itemid, bbox)]
+        del self.keys[itemid]
+        del self.ids[key]
+        del self.bwd[itemid]
         self.fwd.delete(itemid, bbox)
     def batch(self, changeset):
         BaseIndex.batch(self, changeset)
+    def commit(self):
         transaction.commit()
+        rtree_storage = self.fwd.properties.filename
+        self.fwd.close()
+        self.fwd = Rtree(rtree_storage)
+    def close(self):
+        self.fwd.close()
 
-class VRtreeIndex(RtreeIndex):
+class VIntRtreeIndex(IntRtreeIndex):
     """Variant that expects the foward Rtree to be set by a caller"""
     def clear(self):
         self.fwd = None
-        self.bwd = OOBTree.OOBTree()
-    
+        self.bwd = self.family.OO.BTree()
+        self.keys = self.family.IO.BTree()
+        self.ids = self.family.OI.BTree()
+

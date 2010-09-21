@@ -12,11 +12,11 @@ from tornado.options import define, options
 from tornado.options import parse_config_file, parse_command_line
 
 from indexing import BatchError, ChangeSet, ConflictError
-from vrtree import VRtreeIndex
+from vrtree import VIntRtreeIndex
 
 def appmaker(root):
     if not 'index' in root:
-        index = VRtreeIndex()
+        index = VIntRtreeIndex()
         root['index'] = index
         import transaction
         transaction.commit()
@@ -40,7 +40,7 @@ def batch(config_filename, batch_filename):
     changeset = ChangeSet(
         additions=data.get('index'), deletions=data.get('unindex'))
     index.batch(changeset)
-    index.fwd.close()
+    index.commit()
 
 def main():
     try:

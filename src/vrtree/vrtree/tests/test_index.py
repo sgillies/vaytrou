@@ -6,19 +6,17 @@ from indexing import ChangeSet
 from repoze.zodbconn.uri import db_from_uri
 from rtree import Rtree
 
-from vrtree import VRtreeIndex
+from vrtree import IntRtreeIndex
 
-class VRtreeIndexTestCase(TestCase):
-    def test_intid(self):
-        self.assertEqual(VRtreeIndex().intid({'id': '1'}), hash('1') + 2**32)
+class IntRtreeIndexTestCase(TestCase):
     def test_duplicate_index(self):
-        idx = VRtreeIndex()
+        idx = IntRtreeIndex()
         idx.index_item(1, (0, 0, 0, 0), {'foo': 'bar'})
         idx.index_item(1, (0, 0, 0, 0), {'foo': 'baz'})
         self.assertEqual(len(idx.bwd), 1)
         self.assertEqual(idx.fwd.count(idx.fwd.bounds), 1)
     def test_unindex(self):
-        idx = VRtreeIndex()
+        idx = IntRtreeIndex()
         idx.index_item(1, (0, 0, 0, 0), {'foo': 'bar'})
         self.assertEqual(len(idx.bwd), 1)
         self.assertEqual(idx.fwd.count(idx.fwd.bounds), 1)
@@ -26,13 +24,13 @@ class VRtreeIndexTestCase(TestCase):
         self.assertEqual(len(idx.bwd), 0)
         self.assertEqual(idx.fwd.count((0, 0, 1, 1)), 0)
     def test_unindex_nothing(self):
-        assert VRtreeIndex().unindex_item(1, (0, 0, 0, 0)) is None
+        assert IntRtreeIndex().unindex_item(1, (0, 0, 0, 0)) is None
     def test_batch_empty(self):
-        idx = VRtreeIndex()
+        idx = IntRtreeIndex()
         set = ChangeSet()
         self.assertEquals(idx.batch(set), None)
     def test_batch_adds(self):
-        idx = VRtreeIndex()
+        idx = IntRtreeIndex()
         additions = [
             {'id': '1', 'bbox': (0, 0, 0, 0), 't': 'One'},
             {'id': '2', 'geometry': {'type': 'Point', 'coordinates': (0.0, 0.0)},
@@ -47,7 +45,7 @@ class VRtreeIndexTestCase(TestCase):
         self.assertEquals(list(idx.intersection((-0.1, -0.1, 1.1, 1.1))), [{'t': 'One', 'bbox': (0, 0, 0, 0), 'id': '1'}, {'geometry': {'type': 'Point', 'coordinates': (0.0, 0.0)}, 'id': '2', 'bbox': (0.0, 0.0, 0.0, 0.0), 't': 'Two'}])
         self.assertEquals(list(idx.nearest((9.0, 9.0, 9.1, 9.1))), [{'geometry': {'type': 'Point', 'coordinates': (10.01, 10.01)}, 'id': '3', 'bbox': (10.01, 10.01, 10.01, 10.01), 't': 'Three'}])
     def test_batch_deletes(self):
-        idx = VRtreeIndex()
+        idx = IntRtreeIndex()
         additions1 = [
             {'id': '1', 'bbox': (0, 0, 0, 0), 't': 'One'},
             {'id': '2', 'geometry': {'type': 'Point', 'coordinates': (0.0, 0.0)},

@@ -11,11 +11,11 @@ from tornado.options import parse_config_file, parse_command_line
 import tornado.web
 
 from indexing import BatchError, ChangeSet, ConflictError
-from vrtree import VRtreeIndex
+from vrtree import VIntRtreeIndex
 
 def appmaker(root):
     if not 'index' in root:
-        index = VRtreeIndex()
+        index = VIntRtreeIndex()
         root['index'] = index
         import transaction
         transaction.commit()
@@ -32,6 +32,7 @@ class MainHandler(tornado.web.RequestHandler):
             changeset = ChangeSet(
                 additions=data.get('index'), deletions=data.get('unindex'))
             index.batch(changeset)
+            index.commit()
             self.set_status(200)
             self.set_header('content-type', 'application/json')
             self.write(dumps(dict(msg='Batch success')))
@@ -51,7 +52,7 @@ class IntersectionHandler(tornado.web.RequestHandler):
             results = list(index.intersection(coords))
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            self.write(dumps(dict(items=results)))
+            self.write(dumps(dict(count=len(results), items=results)))
         except:
             raise
 
@@ -65,7 +66,7 @@ class NearestHandler(tornado.web.RequestHandler):
             results = list(index.nearest(coords, limit))
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            self.write(dumps(dict(items=results)))
+            self.write(dumps(dict(count=len(results), items=results)))
         except:
             raise
 
@@ -97,5 +98,5 @@ if __name__ == '__main__':
         loop.stop()
         print 'Exiting.'
     finally:
-        index.fwd.close()
+        index.close()
 
