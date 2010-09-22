@@ -11,7 +11,7 @@ from vaytrou.app import make_app
 
 if __name__ == "__main__":
     environ = {}
-    application = make_app(environ, sys.argv[1:]) #config_file, opts, args)
+    application = make_app(environ, sys.argv[1:])
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(8888)
     try:
