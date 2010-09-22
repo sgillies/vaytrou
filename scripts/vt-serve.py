@@ -1,12 +1,18 @@
+import os
 
 import tornado.httpserver
 import tornado.ioloop
-from tornado.options import parse_config_file, parse_command_line
+from tornado.options import options, parse_config_file, parse_command_line
 
 from vaytrou.app import make_app
 
+# TODO: import sys and add egg paths
+
 if __name__ == '__main__':
-    parse_config_file('etc/server.conf')
+    parse_command_line()
+    config_file = options.config or os.path.join(
+        os.getcwd(), 'etc', 'vaytrou.conf')
+    parse_config_file(config_file)
     environ = {}
     application = make_app(environ)
     http_server = tornado.httpserver.HTTPServer(application)

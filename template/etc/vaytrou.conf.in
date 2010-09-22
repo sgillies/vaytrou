@@ -14,5 +14,5 @@ log_file_prefix = "${log_file_prefix}"
 # Data storage directory: location for persisted data. Must be writeable
 # by the server process.
 # data_directory = "/var/vaytrou/data"
-data_directory = "${data_directory}"
+data = "${data}"
 
