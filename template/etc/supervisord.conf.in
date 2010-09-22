@@ -2,29 +2,29 @@
 file=/tmp/supervisor.sock
  
 [supervisord]
-logfile=/Users/seang/code/r-tree-server/log/supervisord.log
+logfile=${home}/log/supervisord.log
 logfile_maxbytes=50MB
 logfile_backups=10
 loglevel=warn
-pidfile=/Users/seang/code/r-tree-server/var/supervisord.pid
+pidfile=i${home}/var/supervisord.pid
 nodaemon=false
 minfds=1024
 minprocs=200
 user=nobody
-childlogdir=/Users/seang/code/r-tree-server/log/
+childlogdir=${home}/log/supervisord/
  
 [rpcinterface:supervisor]
 supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
  
 [group:myapp]
-programs=vt-serve
+programs=server1
  
-[program:vt-serve]
-command=/Users/seang/code/r-tree-server/scripts/vt-serve -c /Users/seang/code/r-tree-server/etc/vaytrou.conf
-directory=/Users/seang/code/r-tree-server/
+[program:server1]
+command=${home}/scripts/vt-serve -c ${home}/etc/vaytrou.conf
+directory=${home}
 autorestart=true
 redirect_stderr=true
-stdout_logfile=/Users/seang/code/r-tree-server/log/vt-serve.log
+stdout_logfile=${home}/log/server1.log
 stdout_logfile_maxbytes=500MB
 stdout_logfile_backups=50
 stdout_capture_maxbytes=1MB
