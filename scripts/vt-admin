@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from functools import partial
 import getopt
 import math
@@ -29,7 +31,25 @@ define('data_directory', default=None, help='Data storage directory')
 # TODO: Much of the code above and below could be shared with vaytrou.py
 # server.
 
-def batch(config_filename, batch_filename):
+class IndexAdmin(object):
+    def __init__
+  
+def create(name, ):
+    # Create index storage
+    
+def drop(name):
+    # Remove index storage
+
+def dump(name):
+    # Dump index
+
+def search(name, method, *kw):
+    # Search index
+
+def pack(name):
+    # Pack index
+
+def batch(name, config_filename, batch_filename):
     parse_config_file(config_filename)
     finder = PersistentApplicationFinder(
         'file://%s/Data.fs' % options.data_directory, appmaker)
