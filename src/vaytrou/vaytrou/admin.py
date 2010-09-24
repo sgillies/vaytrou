@@ -5,11 +5,19 @@ import shutil
 import sys
 
 from repoze.zodbconn.finder import PersistentApplicationFinder
+from repoze.zodbconn.uri import db_from_uri
 from rtree import Rtree
 from simplejson import dumps, load
 
 from indexing import ChangeSet
-from vaytrou.app import appmaker
+
+def appmaker(root):
+    if not 'index' in root:
+        index = VIntRtreeIndex()
+        root['index'] = index
+        import transaction
+        transaction.commit()
+    return root['index']
 
 class IndexAdmin(object):
     def __init__(self):
@@ -25,9 +33,9 @@ class IndexAdmin(object):
         self.environ = {}
     def find_index(self, storage):
         finder = PersistentApplicationFinder(
-            'file://%s/Data.fs' % storage, appmaker)
+           "file://%s/Data.fs" % storage, appmaker)
         index = finder(self.environ)
-        index.fwd = Rtree('%s/vrt1' % storage)
+        index.fwd = Rtree("%s/vrt1" % storage)
         return index
     def run(self, args):
         self.opts, arguments = self.parser.parse_args(args)
@@ -117,6 +125,14 @@ class IndexAdmin(object):
         print(dumps(dict(count=len(results), items=results)))
     def pack(self, name, args):
         """Pack index storage"""
+        command_parser = OptionParser()
+        command_parser.set_usage("info name [options]")
+        copts, cargs = command_parser.parse_args(args)
+        storage = os.path.join(self.opts.data, name)
+        db = db_from_uri("file://%s/Data.fs" % storage)
+        # db.pack()
+        # For the rtree, reload from contents of packed zodb
+        # rtree ...
         raise NotImplementedError
 
 if __name__ == "__main__":
