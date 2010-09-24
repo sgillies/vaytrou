@@ -10,14 +10,7 @@ from rtree import Rtree
 from simplejson import dumps, load
 
 from indexing import ChangeSet
-
-def appmaker(root):
-    if not 'index' in root:
-        index = VIntRtreeIndex()
-        root['index'] = index
-        import transaction
-        transaction.commit()
-    return root['index']
+from vaytrou.app import appmaker
 
 class IndexAdmin(object):
     def __init__(self):
