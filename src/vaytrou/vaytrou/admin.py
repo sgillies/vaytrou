@@ -1,3 +1,4 @@
+import inspect
 from optparse import OptionParser
 import os
 import pprint
@@ -7,7 +8,9 @@ import sys
 from repoze.zodbconn.finder import PersistentApplicationFinder
 from repoze.zodbconn.uri import db_from_uri
 from rtree import Rtree
+from rtree.index import Property
 from simplejson import dumps, load
+from ZODB import FileStorage, DB
 
 from indexing import ChangeSet
 from vaytrou.app import appmaker
@@ -78,6 +81,7 @@ class IndexAdmin(object):
         index = self.find_index(storage)
         count = len(index.bwd)
         print(dumps(dict(count=count, index=list(index.bwd.values()))))
+        index.close()
     def info(self, name, args):
         """Write index information to stdout"""
         command_parser = OptionParser()
@@ -95,6 +99,7 @@ class IndexAdmin(object):
         #print("Tree:")
         #pprint.pprint(index.fwd.properties)
         #pprint.pprint(dir(index.fwd.properties))
+        index.close()
     def search(self, name, args):
         """Execute intersection and nearest neighbor searches"""
         command_parser = OptionParser()
@@ -116,17 +121,66 @@ class IndexAdmin(object):
             gen = index.intersection(coords)
         results = list(gen)
         print(dumps(dict(count=len(results), items=results)))
+        index.close()
     def pack(self, name, args):
         """Pack index storage"""
         command_parser = OptionParser()
         command_parser.set_usage("info name [options]")
         copts, cargs = command_parser.parse_args(args)
-        storage = os.path.join(self.opts.data, name)
-        db = db_from_uri("file://%s/Data.fs" % storage)
-        # db.pack()
-        # For the rtree, reload from contents of packed zodb
-        # rtree ...
-        raise NotImplementedError
+        data = os.path.abspath(os.path.join(self.opts.data, name))
+
+        # First, pack the ZODB
+        storage = FileStorage.FileStorage("%s/Data.fs" % data)
+        db = DB(storage)
+        db.pack()
+
+        # Can't pack an Rtree's storage in-place, so we move it away and 
+        # recreate from the contents of the ZODB
+        rtree = None
+        rtree_filename = '%s/vrt1' % data
+ 
+        try:
+            shutil.move(rtree_filename + ".dat", rtree_filename + ".bkup.dat")
+            shutil.move(rtree_filename + ".idx", rtree_filename + ".bkup.idx")
+        
+            conn = db.open()
+            root = conn.root()
+            keys = root['index'].keys
+
+            bkup = Rtree('%s/vrt1.bkup' % data)
+            pagesize = bkup.properties.pagesize
+
+            if len(keys) == 0:
+                fwd = Rtree(
+                        '%s/vrt1' % data,
+                        # Passing in copied properties doesn't work,
+                        # leading to errors involving page ids
+                        # properties=new_properties, 
+                        pagesize=pagesize
+                        )
+            else:
+                gen = ((intid, bbox, None) for intid, (uid, bbox) \
+                      in keys.items())
+                fwd = Rtree(
+                        '%s/vrt1' % data,
+                        gen, 
+                        # Passing in copied properties doesn't work,
+                        # leading to errors involving page ids
+                        # properties=new_properties,
+                        pagesize=pagesize
+                        )
+
+            conn.close()
+            db.close()
+            storage.close()
+        except:
+            # Restore backups
+            shutil.copy(rtree_filename + ".bkup.dat", rtree_filename + ".dat")
+            shutil.copy(rtree_filename + ".bkup.idx", rtree_filename + ".idx")
+            raise
+        finally:
+            if fwd is not None:
+                fwd.close()
 
 if __name__ == "__main__":
     admin = IndexAdmin()

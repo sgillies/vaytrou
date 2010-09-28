@@ -1,4 +1,5 @@
 from optparse import OptionParser
+import os
 
 from repoze.zodbconn.finder import PersistentApplicationFinder
 from rtree import Rtree

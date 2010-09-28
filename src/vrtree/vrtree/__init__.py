@@ -1,5 +1,5 @@
 import random
-
+import uuid
 import BTrees
 from rtree import Rtree
 import transaction
@@ -55,6 +55,8 @@ class IntRtreeIndex(BaseIndex):
         """Add an Item to the index"""
         if itemid in self.bwd:
             self.unindex_item(itemid, bbox)
+        # Store an id for the item if it has None
+        item.update(id=item.get('id') or str(uuid.uuid4()))
         key = self.key(item)
         self.keys[itemid] = key
         self.ids[key] = itemid
