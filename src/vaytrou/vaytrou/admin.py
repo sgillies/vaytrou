@@ -24,6 +24,18 @@ class IndexAdmin(object):
         self.parser.add_option(
             "-d", "--data", dest="data",
             help="Data directory", metavar="FILE")
+        self.parser.set_usage(
+        "vtadmin [options] command [options]\n\n"
+        "Available commands are:\n\n"
+        "batch: index or unindex a batch of items\n" 
+        "create: create an index\n" 
+        "drop: drop an index\n" 
+        "dump: write contents of an index to stdout\n" 
+        "help: print help\n" 
+        "info: print information about an index\n" 
+        "search: search an index for intersecting or nearest items\n" 
+        "pack: pack index storage, saving disk space"
+        )
         self.opts = None
         self.args = None
         self.environ = {}
@@ -35,7 +47,11 @@ class IndexAdmin(object):
         return index
     def run(self, args):
         self.opts, arguments = self.parser.parse_args(args)
-        command, name = arguments[:2]
+        command = arguments[0]
+        try:
+            name = arguments[1]
+        except IndexError:
+            name = None
         getattr(self, command)(name, arguments[2:])
     def batch(self, name, args):
         command_parser = OptionParser()
@@ -82,6 +98,9 @@ class IndexAdmin(object):
         count = len(index.bwd)
         print(dumps(dict(count=count, index=list(index.bwd.values()))))
         index.close()
+    def help(self, name, args):
+        if name is None:
+            print "Commands are: batch, create, drop, dump, help, info, search, pack"
     def info(self, name, args):
         """Write index information to stdout"""
         command_parser = OptionParser()
@@ -123,7 +142,8 @@ class IndexAdmin(object):
         print(dumps(dict(count=len(results), items=results)))
         index.close()
     def pack(self, name, args):
-        """Pack index storage"""
+        """Pack storage"""
+        # NB: more difficult than previous methods
         command_parser = OptionParser()
         command_parser.set_usage("info name [options]")
         copts, cargs = command_parser.parse_args(args)
@@ -169,7 +189,7 @@ class IndexAdmin(object):
                         # properties=new_properties,
                         pagesize=pagesize
                         )
-
+            
             conn.close()
             db.close()
             storage.close()
