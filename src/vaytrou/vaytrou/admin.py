@@ -20,6 +20,19 @@ class BaseCommand(object):
         self.parser = OptionParser()
     def help(self):
         self.parser.print_help()
+    def open(self, path, create=False, read_only=True):
+        self.storage = FileStorage.FileStorage(
+            "%s/Data.fs" % path, create=create, read_only=read_only)
+        self.db = DB(self.storage)
+        self.conn = self.db.open()
+        root = self.conn.root()
+        index = appmaker(root)
+        index.fwd = Rtree("%s/vrt1" % path)
+        return index
+    def close(self):
+        self.conn.close()
+        self.db.close()
+        self.storage.close()
 
 class BatchCommand(BaseCommand):
     def __init__(self):
@@ -47,11 +60,12 @@ class CreateCommand(BaseCommand):
         self.parser.description = "Create and initialize storage for a new index"
     def __call__(self, container, name, args):
         copts, cargs = self.parser.parse_args(args)
-        storage = os.path.join(container.opts.data, name)
-        os.mkdir(storage)
-        index = container.find_index(storage)
+        path = os.path.join(container.opts.data, name)
+        os.mkdir(path)
+        index = self.open(path, create=True, read_only=False)
         index.commit()
         index.close()
+        self.close()
 
 class DumpCommand(BaseCommand):
     def __init__(self):
@@ -60,11 +74,12 @@ class DumpCommand(BaseCommand):
         self.parser.description = "Write all items, wrapped in an index batch, to stdout"
     def __call__(self, container, name, args):
         copts, cargs = self.parser.parse_args(args)
-        storage = os.path.join(container.opts.data, name)
-        index = container.find_index(storage)
+        path = os.path.join(container.opts.data, name)
+        index = self.open(path)
         count = len(index.bwd)
         print(dumps(dict(count=count, index=list(index.bwd.values()))))
         index.close()
+        self.close()
 
 class DropCommand(BaseCommand):
     def __init__(self):
@@ -92,8 +107,8 @@ class InfoCommand(BaseCommand):
         self.parser.description = "Write information about an index to stdout"
     def __call__(self, container, name, args):
         copts, cargs = self.parser.parse_args(args)
-        storage = os.path.join(container.opts.data, name)
-        index = container.find_index(storage)
+        path = os.path.join(container.opts.data, name)
+        index = self.open(path)
         # TODO: What do we want to get from the index? Tree params?
         count = len(index.bwd)
         bounds = tuple(index.fwd.bounds)
@@ -105,6 +120,7 @@ class InfoCommand(BaseCommand):
         #pprint.pprint(index.fwd.properties)
         #pprint.pprint(dir(index.fwd.properties))
         index.close()
+        self.close()
 
 class SearchCommand(BaseCommand):
     def __init__(self):
@@ -124,8 +140,8 @@ class SearchCommand(BaseCommand):
                   help="limit number of results")
     def __call__(self, container, name, args):
         copts, cargs = self.parser.parse_args(args)
-        storage = os.path.join(container.opts.data, name)
-        index = container.find_index(storage)
+        path = os.path.join(container.opts.data, name)
+        index = self.open(path)
         coords = tuple(float(x) for x in cargs[0].split(','))
         if copts.method == "nearest":
             gen = index.nearest(coords, int(copts.limit))
@@ -134,12 +150,13 @@ class SearchCommand(BaseCommand):
         results = list(gen)
         print(dumps(dict(count=len(results), items=results)))
         index.close()
+        self.close()
 
 class PackCommand(BaseCommand):
     def __init__(self):
         super(PackCommand, self).__init__()
         self.parser.set_usage("%prog [global options] pack name")
-        self.parser.description = "Pack index's storage, conserving disk space"
+        self.parser.description = "Pack index's         storage, conserving disk space"
     def __call__(self, container, name, args):
         copts, cargs = self.parser.parse_args(args)
         data = os.path.join(container.opts.data, name)
@@ -240,11 +257,11 @@ class IndexAdmin(object):
             getattr(self, arguments[1]).help()
         # Command execution
         else:
-            try:
-                name = arguments[1]
-            except IndexError:
-                name = None
+            name = arguments[1]
             getattr(self, command)(self, name, arguments[2:])
+    def finish(self):
+        del self.environ
+        self.environ = {}
 
     batch = BatchCommand()
     create = CreateCommand()
@@ -253,8 +270,4 @@ class IndexAdmin(object):
     info = InfoCommand()
     search = SearchCommand()
     pack = PackCommand()
-
-if __name__ == "__main__":
-    admin = IndexAdmin()
-    admin.run(sys.argv[1:])
 
