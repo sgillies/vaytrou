@@ -1,4 +1,5 @@
 #
+import uuid
 
 from indexing.bounds import bbox
 
@@ -7,7 +8,7 @@ class ConflictError(Exception):
     pass
 
 def key(o):
-    return (o['id'], tuple(o['bbox']))
+    return (o.get('id') or str(uuid.uuid4()), tuple(o['bbox']))
 
 class ChangeSet(object):
     """Atomic group of items to be indexed or unindexed

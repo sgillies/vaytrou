@@ -15,99 +15,85 @@ from ZODB import FileStorage, DB
 from indexing import ChangeSet
 from vaytrou.app import appmaker
 
-class IndexAdmin(object):
+class BaseCommand(object):
     def __init__(self):
-        self.opts = None
-        self.args = None
         self.parser = OptionParser()
-        self.parser.disable_interspersed_args()
+    def help(self):
+        self.parser.print_help()
+
+class BatchCommand(BaseCommand):
+    def __init__(self):
+        super(BatchCommand, self).__init__()
+        self.parser.set_usage("%prog [global options] batch name [options]")
+        self.parser.description = "Submit a batch of items to be indexed or unindexed"
         self.parser.add_option(
-            "-d", "--data", dest="data",
-            help="Data directory", metavar="FILE")
-        self.parser.set_usage(
-        "vtadmin [options] command [options]\n\n"
-        "Available commands are:\n\n"
-        "batch: index or unindex a batch of items\n" 
-        "create: create an index\n" 
-        "drop: drop an index\n" 
-        "dump: write contents of an index to stdout\n" 
-        "help: print help\n" 
-        "info: print information about an index\n" 
-        "search: search an index for intersecting or nearest items\n" 
-        "pack: pack index storage, saving disk space"
-        )
-        self.opts = None
-        self.args = None
-        self.environ = {}
-    def find_index(self, storage):
-        finder = PersistentApplicationFinder(
-           "file://%s/Data.fs" % storage, appmaker)
-        index = finder(self.environ)
-        index.fwd = Rtree("%s/vrt1" % storage)
-        return index
-    def run(self, args):
-        self.opts, arguments = self.parser.parse_args(args)
-        command = arguments[0]
-        try:
-            name = arguments[1]
-        except IndexError:
-            name = None
-        getattr(self, command)(name, arguments[2:])
-    def batch(self, name, args):
-        command_parser = OptionParser()
-        command_parser.set_usage("create name [options]")
-        command_parser.add_option(
             "-f", "--batch-file", dest="filename",
             help="Batch filename", metavar="FILE")
-        # TODO: rtree and zodb creation parameters
-        copts, cargs = command_parser.parse_args(args)
-        storage = os.path.join(self.opts.data, name)
-        index = self.find_index(storage)
+    def __call__(self, container, name, args):
+        copts, cargs = self.parser.parse_args(args)
+        storage = os.path.join(container.opts.data, name)
+        index = container.find_index(storage)
         data = load(open(copts.filename, 'rb'))
         changeset = ChangeSet(
             additions=data.get('index'), deletions=data.get('unindex'))
         index.batch(changeset)
         index.commit()
         index.close()
-    def create(self, name, args):
-        command_parser = OptionParser()
-        command_parser.set_usage("create name [options]")
-        copts, cargs = command_parser.parse_args(args)
-        storage = os.path.join(self.opts.data, name)
+
+class CreateCommand(BaseCommand):
+    def __init__(self):
+        super(CreateCommand, self).__init__()
+        self.parser.set_usage("%prog [global options] create name")
+        self.parser.description = "Create and initialize storage for a new index"
+    def __call__(self, container, name, args):
+        copts, cargs = self.parser.parse_args(args)
+        storage = os.path.join(container.opts.data, name)
         os.mkdir(storage)
-        index = self.find_index(storage)
+        index = container.find_index(storage)
         index.commit()
         index.close()
-    def drop(self, name, args):
-        command_parser = OptionParser()
-        command_parser.set_usage("drop name [options]")
-        copts, cargs = command_parser.parse_args(args)
-        storage = os.path.join(self.opts.data, name)
-        shutil.rmtree(storage)
-    def dump(self, name, args):
-        """Write all contents of the index to stdout
 
-        Contents are wrapped in an "index" object, so the output can be
-        submitted to the batch command.
-        """
-        command_parser = OptionParser()
-        command_parser.set_usage("dump name [options]")
-        copts, cargs = command_parser.parse_args(args)
-        storage = os.path.join(self.opts.data, name)
-        index = self.find_index(storage)
+class DumpCommand(BaseCommand):
+    def __init__(self):
+        super(DumpCommand, self).__init__()
+        self.parser.set_usage("%prog [global options] dump name")
+        self.parser.description = "Write all items, wrapped in an index batch, to stdout"
+    def __call__(self, container, name, args):
+        copts, cargs = self.parser.parse_args(args)
+        storage = os.path.join(container.opts.data, name)
+        index = container.find_index(storage)
         count = len(index.bwd)
         print(dumps(dict(count=count, index=list(index.bwd.values()))))
         index.close()
-    def help(self, name, args):
-        if name is None:
-            print "Commands are: batch, create, drop, dump, help, info, search, pack"
-    def info(self, name, args):
-        """Write index information to stdout"""
-        command_parser = OptionParser()
-        command_parser.set_usage("info name [options]")
-        copts, cargs = command_parser.parse_args(args)
-        storage = os.path.join(self.opts.data, name)
-        index = self.find_index(storage)
+
+class DropCommand(BaseCommand):
+    def __init__(self):
+        super(DropCommand, self).__init__()
+        self.parser.set_usage("%prog [global options] drop name [options]")
+        self.parser.description = "Drop index, deleting storage"
+        self.parser.set_defaults(force=0)
+        self.parser.add_option("-f", "--force", action="store_const",
+            dest="force", const=1, help="Do not prompt for confirmation")
+    def __call__(self, container, name, args):
+        copts, cargs = self.parser.parse_args(args)
+        storage = os.path.join(container.opts.data, name)
+        if not copts.force:
+            sys.stdout.write("This command is irreversible. Continue? [y/N] ")
+            char = sys.stdin.read(1)
+            if char not in ("y", "Y"):
+                print "Aborted."
+                return None
+        shutil.rmtree(storage)
+
+class InfoCommand(BaseCommand):
+    def __init__(self):
+        super(InfoCommand, self).__init__()
+        self.parser.set_usage("%prog [global options] info name")
+        self.parser.description = "Write information about an index to stdout"
+    def __call__(self, container, name, args):
+        copts, cargs = self.parser.parse_args(args)
+        storage = os.path.join(container.opts.data, name)
+        index = container.find_index(storage)
         # TODO: What do we want to get from the index? Tree params?
         count = len(index.bwd)
         bounds = tuple(index.fwd.bounds)
@@ -119,20 +105,27 @@ class IndexAdmin(object):
         #pprint.pprint(index.fwd.properties)
         #pprint.pprint(dir(index.fwd.properties))
         index.close()
-    def search(self, name, args):
-        """Execute intersection and nearest neighbor searches"""
-        command_parser = OptionParser()
-        command_parser.set_usage("search name [options] minx,miny,maxx,maxy")
-        command_parser.set_defaults(method="intersection")
-        command_parser.add_option("--intersection", action="store_const",
-                  dest="method", const="intersection")
-        command_parser.add_option("--nearest", action="store_const",
-                  dest="method", const="nearest")
-        command_parser.add_option("-l", "--limit", dest="limit", default="1")
-        copts, cargs = command_parser.parse_args(args)
-        assert len(cargs) == 1
-        storage = os.path.join(self.opts.data, name)
-        index = self.find_index(storage)
+
+class SearchCommand(BaseCommand):
+    def __init__(self):
+        super(SearchCommand, self).__init__()
+        self.parser.set_usage(
+            "%prog [global options] search name [options] -- minx,miny,maxx,maxy")
+        self.parser.description = "Execute a search on minx,miny,maxx,maxy bounding box and write results to stdout"
+        self.parser.set_defaults(method="intersection")
+        self.parser.add_option("--intersection", action="store_const",
+            dest="method", const="intersection",
+            help="return items that intersect with the bounding box (default)"
+            )
+        self.parser.add_option("--nearest", action="store_const",
+                  dest="method", const="nearest",
+                  help="return items nearest to the bounding box")
+        self.parser.add_option("-l", "--limit", dest="limit", default="1",
+                  help="limit number of results")
+    def __call__(self, container, name, args):
+        copts, cargs = self.parser.parse_args(args)
+        storage = os.path.join(container.opts.data, name)
+        index = container.find_index(storage)
         coords = tuple(float(x) for x in cargs[0].split(','))
         if copts.method == "nearest":
             gen = index.nearest(coords, int(copts.limit))
@@ -141,13 +134,15 @@ class IndexAdmin(object):
         results = list(gen)
         print(dumps(dict(count=len(results), items=results)))
         index.close()
-    def pack(self, name, args):
-        """Pack storage"""
-        # NB: more difficult than previous methods
-        command_parser = OptionParser()
-        command_parser.set_usage("info name [options]")
-        copts, cargs = command_parser.parse_args(args)
-        data = os.path.abspath(os.path.join(self.opts.data, name))
+
+class PackCommand(BaseCommand):
+    def __init__(self):
+        super(PackCommand, self).__init__()
+        self.parser.set_usage("%prog [global options] pack name")
+        self.parser.description = "Pack index's storage, conserving disk space"
+    def __call__(self, container, name, args):
+        copts, cargs = self.parser.parse_args(args)
+        data = os.path.join(container.opts.data, name)
 
         # First, pack the ZODB
         storage = FileStorage.FileStorage("%s/Data.fs" % data)
@@ -201,6 +196,63 @@ class IndexAdmin(object):
         finally:
             if fwd is not None:
                 fwd.close()
+
+class IndexAdmin(object):
+    def __init__(self):
+        self.opts = None
+        self.args = None
+        self.parser = OptionParser(version="%prog 0.1")
+        self.parser.disable_interspersed_args()
+        self.parser.add_option(
+            "-d", "--data", dest="data",
+            help="Data directory", metavar="FILE")
+        self.parser.set_usage(
+        "%prog [program options] command [command options]\n\n"
+        "Available commands are:\n\n"
+        "batch: index or unindex a batch of items\n" 
+        "create: create an index\n" 
+        "drop: drop an index\n" 
+        "dump: write contents of an index to stdout\n" 
+        "help: print help\n" 
+        "info: print information about an index\n" 
+        "search: search an index for intersecting or nearest items\n" 
+        "pack: pack index storage, saving disk space\n\n"
+        "Help for a command can be had by:\n\n"
+        "vtadmin help command\n\n"
+        "or\n\n"
+        "vtadmin command --help")
+        self.opts = None
+        self.args = None
+        self.environ = {}
+    def find_index(self, storage):
+        finder = PersistentApplicationFinder(
+           "file://%s/Data.fs" % storage, appmaker)
+        index = finder(self.environ)
+        index.fwd = Rtree("%s/vrt1" % storage)
+        return index
+    def run(self, args):
+        self.opts, arguments = self.parser.parse_args(args)
+        command = arguments[0]
+        # Command help?
+        if arguments[1] in ("-h", "--help"):
+            getattr(self, command).help()
+        elif command == "help":
+            getattr(self, arguments[1]).help()
+        # Command execution
+        else:
+            try:
+                name = arguments[1]
+            except IndexError:
+                name = None
+            getattr(self, command)(self, name, arguments[2:])
+
+    batch = BatchCommand()
+    create = CreateCommand()
+    drop = DropCommand()
+    dump = DumpCommand()
+    info = InfoCommand()
+    search = SearchCommand()
+    pack = PackCommand()
 
 if __name__ == "__main__":
     admin = IndexAdmin()
