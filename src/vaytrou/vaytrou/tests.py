@@ -6,11 +6,7 @@ import vaytrou.admin
 # Admin tests
 
 def test_admin():
-    storage = tempfile.mkdtemp()
     admin = vaytrou.admin.IndexAdmin()
-    index = admin.find_index(storage)
-    assert hasattr(index, 'fwd')
-    shutil.rmtree(storage)
     def foo(*args):
         pass
     admin.foo = foo
@@ -27,12 +23,18 @@ def test_ro_commands():
     admin.run(['-d', data, 'search', 'foo', '--', '0,0,0,0'])
     shutil.rmtree(data)
 
-# Command tests
+def test_batch():
+    data = tempfile.mkdtemp()
+    admin = vaytrou.admin.IndexAdmin()
+    admin.run(['-d', data, 'create', 'foo'])
+    admin.run(['-d', data, 'batch', 'foo', '-f', 'index-st99_d00.json'])
+    admin.run(['-d', data, 'dump', 'foo'])
+    shutil.rmtree(data)
 
-def test_base_command():
-    cmd = vaytrou.admin.BaseCommand()
-    cmd.help()
+def test_pack():
+    data = tempfile.mkdtemp()
+    admin = vaytrou.admin.IndexAdmin()
+    admin.run(['-d', data, 'create', 'foo'])
+    admin.run(['-d', data, 'pack', 'foo'])
+    shutil.rmtree(data)
 
-def test_batch_command():
-    cmd = vaytrou.admin.BatchCommand()
-    cmd.help()

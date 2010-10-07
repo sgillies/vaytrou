@@ -45,13 +45,14 @@ class BatchCommand(BaseCommand):
     def __call__(self, container, name, args):
         copts, cargs = self.parser.parse_args(args)
         storage = os.path.join(container.opts.data, name)
-        index = container.find_index(storage)
+        index = self.open(storage, read_only=False)
         data = load(open(copts.filename, 'rb'))
         changeset = ChangeSet(
             additions=data.get('index'), deletions=data.get('unindex'))
         index.batch(changeset)
         index.commit()
         index.close()
+        self.close()
 
 class CreateCommand(BaseCommand):
     def __init__(self):
@@ -241,12 +242,6 @@ class IndexAdmin(object):
         self.opts = None
         self.args = None
         self.environ = {}
-    def find_index(self, storage):
-        finder = PersistentApplicationFinder(
-           "file://%s/Data.fs" % storage, appmaker)
-        index = finder(self.environ)
-        index.fwd = Rtree("%s/vrt1" % storage)
-        return index
     def run(self, args):
         self.opts, arguments = self.parser.parse_args(args)
         command = arguments[0]
@@ -259,9 +254,6 @@ class IndexAdmin(object):
         else:
             name = arguments[1]
             getattr(self, command)(self, name, arguments[2:])
-    def finish(self):
-        del self.environ
-        self.environ = {}
 
     batch = BatchCommand()
     create = CreateCommand()
