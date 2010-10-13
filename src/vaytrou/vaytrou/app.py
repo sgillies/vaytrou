@@ -1,3 +1,4 @@
+from itertools import islice
 from optparse import OptionParser
 import os
 
@@ -54,10 +55,14 @@ class IntersectionHandler(tornado.web.RequestHandler):
         try:
             bbox = self.get_argument('bbox')
             coords = tuple(float(x) for x in bbox.split(','))
-            results = list(self.application.index.intersection(coords))
+            # Paging args
+            start = int(self.get_argument('start', '0'))
+            count = int(self.get_argument('count', '20'))
+            if count > 20: count = 20
+            results = list(islice(self.application.index.intersection(coords), start, start+count))
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            self.write(dumps(dict(count=len(results), items=results)))
+            self.write(dumps(dict(bbox=coords, start=start, count=len(results), items=results)))
         except:
             raise
 
@@ -68,10 +73,11 @@ class NearestHandler(tornado.web.RequestHandler):
             bbox = self.get_argument('bbox')
             coords = tuple(float(x) for x in bbox.split(','))
             limit = int(self.get_argument('limit', '1'))
+            if limit > 20: limit = 20
             results = list(self.application.index.nearest(coords, limit))
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            self.write(dumps(dict(count=len(results), items=results)))
+            self.write(dumps(dict(bbox=bbox, limit=limit, count=len(results), items=results)))
         except:
             raise
 
