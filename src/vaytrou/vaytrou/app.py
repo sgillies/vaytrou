@@ -27,7 +27,7 @@ def appmaker(root):
 def box2poly(b):
     return dict(
         type='Polygon', 
-        coords=[(
+        coordinates=[(
             (b[0], b[1]),
             (b[0], b[3]),
             (b[2], b[3]),
@@ -76,14 +76,25 @@ class IntersectionHandler(tornado.web.RequestHandler):
         try:
             bbox = self.get_argument('bbox')
             coords = tuple(float(x) for x in bbox.split(','))
+            strict = bool(self.get_argument('strict', 0))
             # Paging args
             start = int(self.get_argument('start', '0'))
             count = int(self.get_argument('count', '20'))
             if count > 20: count = 20
-            results = list(islice(self.application.index.intersection(coords), start, start+count))
+            # Query
+            candidates = self.application.index.intersection(coords)
+            if strict:
+                region = asShape(box2poly(coords))
+                def pred(item):
+                    g = geom(item)
+                    return region.contains
+                hits = list(ifilter(pred, candidates))
+            else:
+                hits = list(candidates)
+            results = hits[start:start+count]
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            self.write(dumps(dict(bbox=coords, start=start, count=len(results), items=results)))
+            self.write(dumps(dict(bbox=coords, start=start, strict=strict, count=len(results), hits=len(hits), items=results)))
         except:
             raise
 
@@ -129,11 +140,12 @@ class DistanceHandler(tornado.web.RequestHandler):
             else:
                 def pred(ob):
                     g = geom(ob)
-                    return region.intersects(g)
-            results = list(islice(ifilter(pred, candidates), start, start+count))
+                    return region.distance(g) <= d
+            hits = list(ifilter(pred, candidates))
+            results = hits[start:start+count]
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            self.write(dumps(dict(lon=x, lat=y, radius=r, strict=strict, start=start, count=len(results), items=results)))
+            self.write(dumps(dict(lon=x, lat=y, radius=r, strict=strict, start=start, count=len(results), hits=len(hits), items=results)))
         except:
             raise
 
