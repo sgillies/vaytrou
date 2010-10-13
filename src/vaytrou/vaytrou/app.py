@@ -1,9 +1,11 @@
-from itertools import islice
+import math
+from itertools import ifilter, imap, islice
 from optparse import OptionParser
 import os
 
 from repoze.zodbconn.finder import PersistentApplicationFinder
 from rtree import Rtree
+from shapely.geometry import asShape, Point
 from simplejson import dumps, loads
 from tornado.options import define, options
 from tornado.options import parse_config_file, parse_command_line
@@ -21,6 +23,25 @@ def appmaker(root):
         import transaction
         transaction.commit()
     return root['index']
+
+def box2poly(b):
+    return dict(
+        type='Polygon', 
+        coords=[(
+            (b[0], b[1]),
+            (b[0], b[3]),
+            (b[2], b[3]),
+            (b[2], b[1])
+            )]
+        )
+
+def geom(item):
+    try:
+        g = item['geometry']
+    except KeyError:
+        b = item['bbox']
+        g = box2poly(b)
+    return asShape(g)
 
 class Application(tornado.web.Application):
     def __init__(self, index=None, handlers=None, default_host="",
@@ -81,6 +102,41 @@ class NearestHandler(tornado.web.RequestHandler):
         except:
             raise
 
+class DistanceHandler(tornado.web.RequestHandler):
+    def get(self):
+        '''Perform distance search'''
+        try:
+            x = float(self.get_argument('lon'))
+            y = float(self.get_argument('lat'))
+            r = float(self.get_argument('radius'))
+            strict = bool(self.get_argument('strict', 0))
+            start = int(self.get_argument('start', '0'))
+            count = int(self.get_argument('count', '20'))
+            if count > 20: count = 20
+            # Make a box for first pass intersection search
+            Re = 6371000.0 # radius of earth in meters, spherical approx
+            F = 180.0/(math.pi*Re)
+            d = F*r/math.cos(y)
+            coords = (x-d, y-d, x+d, y+d)
+            candidates = self.application.index.intersection(coords)
+            # Now filter geometrically
+            region = Point(x, y).buffer(d)
+            # Strict mode means no maybes
+            if strict:
+                def pred(ob):
+                    g = geom(ob)
+                    return region.contains(g)
+            else:
+                def pred(ob):
+                    g = geom(ob)
+                    return region.intersects(g)
+            results = list(islice(ifilter(pred, candidates), start, start+count))
+            self.set_status(200)
+            self.set_header('content-type', 'application/json')
+            self.write(dumps(dict(lon=x, lat=y, radius=r, strict=strict, start=start, count=len(results), items=results)))
+        except:
+            raise
+
 def make_app(environ, argv1=None):
     parser = OptionParser()
     parser.add_option(
@@ -118,6 +174,7 @@ def make_app(environ, argv1=None):
         (r'/', MainHandler),
         (r'/intersection', IntersectionHandler),
         (r'/nearest', NearestHandler),
+        (r'/distance', DistanceHandler),
         ])
 
 
