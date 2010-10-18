@@ -52,6 +52,7 @@ class Application(tornado.web.Application):
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
+        
         self.write('index has %s items\n' % len(self.application.index.bwd))
     def post(self):
         try:
@@ -149,6 +150,18 @@ class DistanceHandler(tornado.web.RequestHandler):
         except:
             raise
 
+class ItemHandler(tornado.web.RequestHandler):
+    def get(self, id, minx, miny, maxx, maxy):
+        '''Return representation of a stored item using its (id, bbox) key'''
+        index = self.application.index
+        key = (str(id), (float(minx), float(miny), float(maxx), float(maxy)))
+        try:
+            self.set_status(200)
+            self.set_header('content-type', 'application/json')
+            self.write(dumps(index.bwd[index.ids[key]]))
+        except:
+            raise
+
 def make_app(environ, argv1=None):
     parser = OptionParser()
     parser.add_option(
@@ -187,6 +200,7 @@ def make_app(environ, argv1=None):
         (r'/intersection', IntersectionHandler),
         (r'/nearest', NearestHandler),
         (r'/distance', DistanceHandler),
+        (r'/item/(\w+);([0-9\.]+),([0-9\.]+),([0-9\.]+),([0-9\.]+)', ItemHandler)
         ])
 
 
