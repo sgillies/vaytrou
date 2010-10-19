@@ -1,13 +1,14 @@
 import random
 import uuid
 import BTrees
+from BTrees.IIBTree import union, IISet
 from rtree import Rtree
 import transaction
 
 from indexing import BaseIndex
 
 class IntRtreeIndex(BaseIndex):
-    """Avoids the slower Rtree query object=True interface
+    """Avointids the slower Rtree query object=True interface
     """
     _v_nextuid = None
     family = BTrees.family32
@@ -16,7 +17,8 @@ class IntRtreeIndex(BaseIndex):
         self.fwd = Rtree()
         self.bwd = self.family.OO.BTree()
         self.keys = self.family.IO.BTree()
-        self.ids = self.family.OI.BTree()
+        self.intids = self.family.OI.BTree()
+        self.ids = self.family.OO.BTree()
     def __init__(self):
         self.clear()
     def key(self, item):
@@ -24,10 +26,12 @@ class IntRtreeIndex(BaseIndex):
             return item['id'], tuple(self.bbox(item))
         except:
             return tuple(item.items())
+    def id(self, item):
+        return item['id']
     def intid(self, item):
         # Get and track next available key using zope.intid algorithm
         # Item might be already registered
-        uid = self.ids.get(self.key(item))
+        uid = self.intids.get(self.key(item))
         if uid is not None:
             return uid
         # But if not registered
@@ -58,8 +62,12 @@ class IntRtreeIndex(BaseIndex):
         # Store an id for the item if it has None
         item.update(id=item.get('id') or str(uuid.uuid4()))
         key = self.key(item)
+        sid = self.id(item)
         self.keys[itemid] = key
-        self.ids[key] = itemid
+        self.intids[key] = itemid
+        if sid not in self.ids:
+            self.ids[sid] = IISet([])
+        self.ids[sid].add(itemid)
         self.bwd[itemid] = item
         self.fwd.add(itemid, bbox)
     def unindex_item(self, itemid, bbox):
@@ -67,8 +75,9 @@ class IntRtreeIndex(BaseIndex):
         key = self.keys.get(itemid)
         if key is None:
             return
+        self.ids[key[0]].remove(itemid)
         del self.keys[itemid]
-        del self.ids[key]
+        del self.intids[key]
         del self.bwd[itemid]
         self.fwd.delete(itemid, bbox)
     def batch(self, changeset):
@@ -87,5 +96,6 @@ class VIntRtreeIndex(IntRtreeIndex):
         self.fwd = None
         self.bwd = self.family.OO.BTree()
         self.keys = self.family.IO.BTree()
-        self.ids = self.family.OI.BTree()
+        self.intids = self.family.OI.BTree()
+        self.ids = self.family.OO.BTree()
 

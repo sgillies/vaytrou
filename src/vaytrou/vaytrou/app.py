@@ -150,7 +150,7 @@ class DistanceHandler(tornado.web.RequestHandler):
         except:
             raise
 
-class ItemHandler(tornado.web.RequestHandler):
+class SingleItemHandler(tornado.web.RequestHandler):
     def get(self, id, minx, miny, maxx, maxy):
         '''Return representation of a stored item using its (id, bbox) key'''
         index = self.application.index
@@ -158,7 +158,19 @@ class ItemHandler(tornado.web.RequestHandler):
         try:
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            self.write(dumps(index.bwd[index.ids[key]]))
+            self.write(dumps(index.bwd[index.intids[key]]))
+        except:
+            raise
+
+class MultipleItemsHandler(tornado.web.RequestHandler):
+    def get(self, id):
+        '''Return representation of stored items with an id'''
+        index = self.application.index
+        try:
+            self.set_status(200)
+            self.set_header('content-type', 'application/json')
+            items = [index.bwd[itemid] for itemid in index.ids[id]]
+            self.write(dumps(dict(id=id, items=[items])))
         except:
             raise
 
@@ -200,7 +212,9 @@ def make_app(environ, argv1=None):
         (r'/intersection', IntersectionHandler),
         (r'/nearest', NearestHandler),
         (r'/distance', DistanceHandler),
-        (r'/item/(\w+);([0-9\.]+),([0-9\.]+),([0-9\.]+),([0-9\.]+)', ItemHandler)
+        (r'/item/(\w+);([0-9\.]+),([0-9\.]+),([0-9\.]+),([0-9\.]+)', 
+         SingleItemHandler),
+        (r'/items/(\w+)', MultipleItemsHandler)
         ])
 
 
