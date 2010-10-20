@@ -4,6 +4,7 @@ import sys
 
 import tornado.httpserver
 import tornado.ioloop
+from tornado.options import options
 
 from vaytrou.app import make_app
 
@@ -13,7 +14,7 @@ if __name__ == "__main__":
     environ = {}
     application = make_app(environ, sys.argv[1:])
     http_server = tornado.httpserver.HTTPServer(application)
-    http_server.listen(8888)
+    http_server.listen(int(options.port) or 8888)
     try:
         loop = tornado.ioloop.IOLoop.instance()
         loop.start()

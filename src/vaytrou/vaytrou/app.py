@@ -15,6 +15,7 @@ from indexing import BatchError, ChangeSet, ConflictError
 from vrtree import VIntRtreeIndex
 
 define('data', default=None, help='Data storage directory')
+define('port', default=8888, help='Server port')
 
 def appmaker(root):
     if not 'index' in root:
@@ -52,8 +53,8 @@ class Application(tornado.web.Application):
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        
-        self.write('index has %s items\n' % len(self.application.index.bwd))
+        index = self.application.index
+        self.write(dumps(dict(name=index.name, num_items=len(index.bwd))))
     def post(self):
         try:
             data = loads(self.request.body)
@@ -128,9 +129,13 @@ class DistanceHandler(tornado.web.RequestHandler):
             # Make a box for first pass intersection search
             Re = 6371000.0 # radius of earth in meters, spherical approx
             F = 180.0/(math.pi*Re)
-            d = F*r/math.cos(y)
+            d = F*r/math.cos(math.pi*y/180.0)
             coords = (x-d, y-d, x+d, y+d)
-            candidates = self.application.index.intersection(coords)
+            try:
+                candidates = self.application.index.intersection(coords)
+            except:
+                import pdb; pdb.set_trace()
+                raise
             # Now filter geometrically
             region = Point(x, y).buffer(d)
             # Strict mode means no maybes
@@ -188,7 +193,12 @@ def make_app(environ, argv1=None):
     parser.add_option(
         "-L", "--log-level", dest="logging",
         help="Log level", metavar="info|warning|error|none")
+    parser.add_option(
+        "-p", "--port", dest="port",
+        help="Port", default="0")
+
     opts, args = parser.parse_args(argv1)
+    name = args[0]
     
     config_file = opts.config_file or os.path.join(
         os.getcwd(), "etc", "vaytrou.conf")
@@ -203,10 +213,11 @@ def make_app(environ, argv1=None):
             options[k].set(v)
 
     finder = PersistentApplicationFinder(
-        'file://%s/Data.fs' % options.data, appmaker)
+        'file://%s/%s/Data.fs' % (options.data, name), appmaker)
     index = finder(environ)
-    index.fwd = Rtree('%s/vrt1' % options.data)
-    
+    index.fwd = Rtree('%s/%s/vrt1' % (options.data, name))
+    setattr(index, 'name', name)
+
     return Application(index, [
         (r'/', MainHandler),
         (r'/intersection', IntersectionHandler),
