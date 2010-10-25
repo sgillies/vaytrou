@@ -22,12 +22,12 @@ class BaseCommand(object):
         self.parser.print_help()
     def open(self, path, create=False, read_only=True):
         self.storage = FileStorage.FileStorage(
-            "%s/Data.fs" % path, create=create, read_only=read_only)
+            "%s/var/Data.fs" % path, create=create, read_only=read_only)
         self.db = DB(self.storage)
         self.conn = self.db.open()
         root = self.conn.root()
         index = appmaker(root)
-        index.fwd = Rtree("%s/vrt1" % path)
+        index.fwd = Rtree("%s/var/vrt1" % path)
         return index
     def close(self):
         self.conn.close()
@@ -63,6 +63,10 @@ class CreateCommand(BaseCommand):
         copts, cargs = self.parser.parse_args(args)
         path = os.path.join(container.opts.data, name)
         os.mkdir(path)
+        for dir in ('etc', 'log', 'var'):
+            os.mkdir("%s/%s" % (path, dir))
+        with open("%s/etc/vaytrou.conf" % path, 'w') as f:
+            f.write(CONFIG_TEMPLATE % {'base': os.path.abspath(path).rstrip('/')})
         index = self.open(path, create=True, read_only=False)
         index.commit()
         index.close()
@@ -157,20 +161,20 @@ class PackCommand(BaseCommand):
     def __init__(self):
         super(PackCommand, self).__init__()
         self.parser.set_usage("%prog [global options] pack name")
-        self.parser.description = "Pack index's         storage, conserving disk space"
+        self.parser.description = "Pack index's storage, conserving disk space"
     def __call__(self, container, name, args):
         copts, cargs = self.parser.parse_args(args)
         data = os.path.join(container.opts.data, name)
 
         # First, pack the ZODB
-        storage = FileStorage.FileStorage("%s/Data.fs" % data)
+        storage = FileStorage.FileStorage("%s/var/Data.fs" % data)
         db = DB(storage)
         db.pack()
 
         # Can't pack an Rtree's storage in-place, so we move it away and 
         # recreate from the contents of the ZODB
         rtree = None
-        rtree_filename = '%s/vrt1' % data
+        rtree_filename = '%s/var/vrt1' % data
  
         try:
             shutil.move(rtree_filename + ".dat", rtree_filename + ".bkup.dat")
@@ -180,12 +184,12 @@ class PackCommand(BaseCommand):
             root = conn.root()
             keys = root['index'].keys
 
-            bkup = Rtree('%s/vrt1.bkup' % data)
+            bkup = Rtree('%s/var/vrt1.bkup' % data)
             pagesize = bkup.properties.pagesize
 
             if len(keys) == 0:
                 fwd = Rtree(
-                        '%s/vrt1' % data,
+                        '%s/var/vrt1' % data,
                         # Passing in copied properties doesn't work,
                         # leading to errors involving page ids
                         # properties=new_properties, 
@@ -195,7 +199,7 @@ class PackCommand(BaseCommand):
                 gen = ((intid, bbox, None) for intid, (uid, bbox) \
                       in keys.items())
                 fwd = Rtree(
-                        '%s/vrt1' % data,
+                        '%s/var/vrt1' % data,
                         gen, 
                         # Passing in copied properties doesn't work,
                         # leading to errors involving page ids
@@ -262,4 +266,40 @@ class IndexAdmin(object):
     info = InfoCommand()
     search = SearchCommand()
     pack = PackCommand()
+
+CONFIG_TEMPLATE = """
+# Vaytrou server configuration
+# ============================
+
+# Logging
+# -------
+#
+# log_to_stderr = True
+log_file_prefix = "%(base)s/log/vaytrou.log"
+
+# Storage
+# -------
+# 
+# Data storage directory: location for persisted data. Must be writeable
+# by the server process.
+data = "%(base)s/var"
+
+# Query control
+# -------------
+# 
+# Search result page size
+page_size = 20
+
+# Maximum search result page size
+max_page_size = 100
+
+# Maximum limit for nearest neighbor search
+max_nearest_limit = 20
+
+# Maximum search box area (unitless)
+# max_bbox_area = 100.0
+
+# Maximum radius for distance searches (meters)
+max_radius = 200000.0
+"""
 

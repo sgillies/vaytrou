@@ -38,5 +38,3 @@ def test_pack():
     admin.run(['-d', data, 'pack', 'foo'])
     shutil.rmtree(data)
 
-def test_app():
-    

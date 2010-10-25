@@ -256,8 +256,11 @@ def make_app(environ, argv1=None):
     opts, args = parser.parse_args(argv1)
     name = args[0]
     
-    config_file = opts.config_file or os.path.join(
-        os.getcwd(), "etc", "vaytrou.conf")
+    if opts.data.startswith('/'):
+        instance_path = os.path.join(opts.data, name)
+    else:
+        instance_path = os.path.join(os.getcwd(), opts.data, name) 
+    config_file = opts.config_file or os.path.join(os.path.abspath(instance_path), "etc", "vaytrou.conf")
     if config_file is not None:
         parse_config_file(config_file)    
     parse_command_line([])
@@ -269,9 +272,9 @@ def make_app(environ, argv1=None):
             options[k].set(v)
 
     finder = PersistentApplicationFinder(
-        'file://%s/%s/Data.fs' % (options.data, name), appmaker)
+        'file://%s/%s/var/Data.fs' % (options.data, name), appmaker)
     index = finder(environ)
-    index.fwd = Rtree('%s/%s/vrt1' % (options.data, name))
+    index.fwd = Rtree('%s/%s/var/vrt1' % (options.data, name))
     setattr(index, 'name', name)
 
     return Application(index, [
