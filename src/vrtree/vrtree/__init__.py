@@ -26,7 +26,7 @@ class IntRtreeIndex(BaseIndex):
             return item['id'], tuple(self.bbox(item))
         except:
             return tuple(item.items())
-    def id(self, item):
+    def fid(self, item):
         return item['id']
     def intid(self, item):
         # Get and track next available key using zope.intid algorithm
@@ -55,6 +55,10 @@ class IntRtreeIndex(BaseIndex):
         """Return an iterator over the nearest N=limit Items to the bbox"""
         for hit in self.fwd.nearest(bbox, num_results=limit, objects=False):
             yield self.bwd[int(hit)]
+    def item(self, fid, bbox):
+        return self.bwd[self.intids[(fid, bbox)]]
+    def items(self, fid):
+        return [self.bwd[intid] for intid in self.ids[fid]]
     def index_item(self, itemid, bbox, item):
         """Add an Item to the index"""
         if itemid in self.bwd:
@@ -62,7 +66,7 @@ class IntRtreeIndex(BaseIndex):
         # Store an id for the item if it has None
         item.update(id=item.get('id') or str(uuid.uuid4()))
         key = self.key(item)
-        sid = self.id(item)
+        sid = self.fid(item)
         self.keys[itemid] = key
         self.intids[key] = itemid
         if sid not in self.ids:

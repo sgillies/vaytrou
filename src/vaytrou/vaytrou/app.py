@@ -78,25 +78,17 @@ class IntersectionHandler(tornado.web.RequestHandler):
         try:
             bbox = self.get_argument('bbox')
             coords = tuple(float(x) for x in bbox.split(','))
-            strict = bool(self.get_argument('strict', 0))
             # Paging args
             start = int(self.get_argument('start', '0'))
             count = int(self.get_argument('count', '20'))
             if count > 20: count = 20
             # Query
             candidates = self.application.index.intersection(coords)
-            if strict:
-                region = asShape(box2poly(coords))
-                def pred(item):
-                    g = geom(item)
-                    return region.contains
-                hits = list(ifilter(pred, candidates))
-            else:
-                hits = list(candidates)
+            hits = list(candidates)
             results = hits[start:start+count]
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            self.write(dumps(dict(bbox=coords, start=start, strict=strict, count=len(results), hits=len(hits), items=results)))
+            self.write(dumps(dict(bbox=coords, start=start, count=len(results), hits=len(hits), items=results)))
         except:
             raise
 
@@ -122,7 +114,6 @@ class DistanceHandler(tornado.web.RequestHandler):
             x = float(self.get_argument('lon'))
             y = float(self.get_argument('lat'))
             r = float(self.get_argument('radius'))
-            strict = bool(self.get_argument('strict', 0))
             start = int(self.get_argument('start', '0'))
             count = int(self.get_argument('count', '20'))
             if count > 20: count = 20
@@ -131,51 +122,39 @@ class DistanceHandler(tornado.web.RequestHandler):
             F = 180.0/(math.pi*Re)
             d = F*r/math.cos(math.pi*y/180.0)
             coords = (x-d, y-d, x+d, y+d)
-            try:
-                candidates = self.application.index.intersection(coords)
-            except:
-                import pdb; pdb.set_trace()
-                raise
+            candidates = self.application.index.intersection(coords)
             # Now filter geometrically
             region = Point(x, y).buffer(d)
-            # Strict mode means no maybes
-            if strict:
-                def pred(ob):
-                    g = geom(ob)
-                    return region.contains(g)
-            else:
-                def pred(ob):
-                    g = geom(ob)
-                    return region.distance(g) <= d
+            def pred(ob):
+                g = geom(ob)
+                return region.distance(g) <= d
             hits = list(ifilter(pred, candidates))
             results = hits[start:start+count]
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            self.write(dumps(dict(lon=x, lat=y, radius=r, strict=strict, start=start, count=len(results), hits=len(hits), items=results)))
+            self.write(dumps(dict(lon=x, lat=y, radius=r, start=start, count=len(results), hits=len(hits), items=results)))
         except:
             raise
 
 class SingleItemHandler(tornado.web.RequestHandler):
-    def get(self, id, minx, miny, maxx, maxy):
+    def get(self, fid, minx, miny, maxx, maxy):
         '''Return representation of a stored item using its (id, bbox) key'''
-        index = self.application.index
-        key = (str(id), (float(minx), float(miny), float(maxx), float(maxy)))
+        a, b = str(fid), (float(minx), float(miny), float(maxx), float(maxy))
         try:
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            self.write(dumps(index.bwd[index.intids[key]]))
+            self.write(dumps(self.application.index.item(a, b)))
         except:
             raise
 
 class MultipleItemsHandler(tornado.web.RequestHandler):
-    def get(self, id):
+    def get(self, fid):
         '''Return representation of stored items with an id'''
-        index = self.application.index
         try:
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            items = [index.bwd[itemid] for itemid in index.ids[id]]
-            self.write(dumps(dict(id=id, items=[items])))
+            items = self.application.index.items(fid)
+            self.write(dumps(dict(id=fid, items=[items])))
         except:
             raise
 
@@ -223,9 +202,9 @@ def make_app(environ, argv1=None):
         (r'/intersection', IntersectionHandler),
         (r'/nearest', NearestHandler),
         (r'/distance', DistanceHandler),
-        (r'/item/(\w+);([0-9\.]+),([0-9\.]+),([0-9\.]+),([0-9\.]+)', 
+        (r'/item/([-\w]+);([-0-9\.]+),([-0-9\.]+),([-0-9\.]+),([-0-9\.]+)', 
          SingleItemHandler),
-        (r'/items/(\w+)', MultipleItemsHandler)
+        (r'/items/([-\w]+)', MultipleItemsHandler)
         ])
 
 
