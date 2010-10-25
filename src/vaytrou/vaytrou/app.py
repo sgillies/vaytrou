@@ -6,6 +6,7 @@ import os
 from repoze.zodbconn.finder import PersistentApplicationFinder
 from rtree import Rtree
 from shapely.geometry import asShape, Point
+from shapely import wkt
 from simplejson import dumps, loads
 from tornado.options import define, options
 from tornado.options import parse_config_file, parse_command_line
@@ -52,7 +53,7 @@ def geom(item):
 class Error(Exception):
     pass
 
-class SearchBoxTooLarge(Error):
+class SearchBoundsTooLarge(Error):
     def __init__(self, bbox, value):
         self.bbox = bbox
         self.value = value
@@ -94,15 +95,34 @@ class MainHandler(tornado.web.RequestHandler):
         except:            
             raise
 
-class IntersectionHandler(tornado.web.RequestHandler):
+class SearchBoundsHandler(tornado.web.RequestHandler):
+    def parse_coords(self):
+        coords = None
+        region = None
+        bbox = self.get_argument('bbox', None)
+        if bbox:
+            coords = tuple(float(x) for x in bbox.split(','))
+        else:
+            geom = self.get_argument('geom', None)
+            if geom:
+                region = wkt.loads(geom)
+                coords = region.bounds
+        if coords is None:
+            raise ValueError("No search bounds specified")
+        elif len(coords) == 4 and options.max_bbox_area is not None:
+            if geom({'bbox': coords}).area > options.max_bbox_area:
+                raise SearchBoxTooLarge(bbox, options.max_bbox_area)
+        self.coords = coords
+        self.region = region
+        return self.coords, self.region
+
+class IntersectionHandler(SearchBoundsHandler):
     def get(self):
         '''Perform intersection search'''
         try:
-            bbox = self.get_argument('bbox')
-            coords = tuple(float(x) for x in bbox.split(','))
-            if len(coords) == 4 and options.max_bbox_area is not None:
-                if geom({'bbox': coords}).area > options.max_bbox_area:
-                    raise SearchBoxTooLarge(bbox, options.max_bbox_area)
+            coords, region = self.parse_coords()
+            # Strict -- true geometric intersection?
+            strict = bool(self.get_argument('strict', 0))
             # Paging args
             start = int(self.get_argument('start', '0'))
             count = int(self.get_argument('count', '0')) or options.page_size
@@ -110,7 +130,13 @@ class IntersectionHandler(tornado.web.RequestHandler):
                 count = options.max_page_size
             # Query
             candidates = self.application.index.intersection(coords)
-            hits = list(candidates)
+            if strict and region:
+                def pred(item):
+                    g = geom(item)
+                    return region.contains
+                hits = list(ifilter(pred, candidates))
+            else:
+                hits = list(candidates)
             results = hits[start:start+count]
             self.set_status(200)
             self.set_header('content-type', 'application/json')
@@ -125,15 +151,11 @@ class IntersectionHandler(tornado.web.RequestHandler):
         except:
             raise
 
-class NearestHandler(tornado.web.RequestHandler):
+class NearestHandler(SearchBoundsHandler):
     def get(self):
         '''Perform intersection search'''
         try:
-            bbox = self.get_argument('bbox')
-            coords = tuple(float(x) for x in bbox.split(','))
-            if len(coords) == 4 and options.max_bbox_area is not None:
-                if geom({'bbox': coords}).area > options.max_bbox_area:
-                    raise SearchBoxTooLarge(bbox, options.max_bbox_area)
+            coords, region = self.parse_coords()
             limit = int(self.get_argument('limit', '1'))
             if limit > options.max_nearest_limit:
                 limit = options.max_nearest_limit
@@ -142,7 +164,7 @@ class NearestHandler(tornado.web.RequestHandler):
             self.set_header('content-type', 'application/json')
             self.write(dumps(
                 dict(
-                    bbox=bbox, 
+                    bbox=coords, 
                     limit=limit, 
                     count=len(results), 
                     items=results)
@@ -254,9 +276,9 @@ def make_app(environ, argv1=None):
 
     return Application(index, [
         (r'/', MainHandler),
-        (r'/intersection', IntersectionHandler),
-        (r'/nearest', NearestHandler),
-        (r'/distance', DistanceHandler),
+        (r'/intersection/?', IntersectionHandler),
+        (r'/nearest/?', NearestHandler),
+        (r'/distance/?', DistanceHandler),
         (r'/item/([-\w]+);([-0-9\.]+),([-0-9\.]+),([-0-9\.]+),([-0-9\.]+)', 
          SingleItemHandler),
         (r'/items/([-\w]+)', MultipleItemsHandler)
