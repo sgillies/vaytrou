@@ -157,16 +157,36 @@ class NearestHandler(SearchBoundsHandler):
         try:
             coords, region = self.parse_coords()
             limit = int(self.get_argument('limit', '1'))
+            # Paging args
+            start = int(self.get_argument('start', '0'))
+            count = int(self.get_argument('count', '0')) or options.page_size
+            if count > options.max_page_size:
+                count = options.max_page_size
             if limit > options.max_nearest_limit:
                 limit = options.max_nearest_limit
-            results = list(self.application.index.nearest(coords, limit))
+            candidates = self.application.index.nearest(coords, limit)
+            hits = list(candidates)
+            def score(ob):
+                g = geom(ob)
+                r = region
+                if r is None:
+                    r = asShape(box2poly(coords))
+                    # local scaling might be better, degree units are implicit
+                    # in this value
+                    k = 0.2
+                return int(math.exp(-r.distance(g)/k) * 1000)
+            results = [dict(
+                x.items() + [('score', score(x))]
+                ) for x in islice(hits, start, start+count)]
             self.set_status(200)
             self.set_header('content-type', 'application/json')
             self.write(dumps(
                 dict(
                     bbox=coords, 
-                    limit=limit, 
+                    limit=limit,
+                    start=start,
                     count=len(results), 
+                    hits=len(hits), 
                     items=results)
                 ))
         except:
