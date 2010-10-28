@@ -182,7 +182,10 @@ class NearestHandler(SearchBoundsHandler):
                 g = geom(ob)
                 r = region
                 if r is None:
-                    r = asShape(box2poly(coords))
+                    if len(coords) == 2:
+                        r = Point(coords)
+                    else:
+                        r = asShape(box2poly(coords))
                 # local scaling might be better, degree units are implicit
                 # in this value
                 k = 0.2
