@@ -137,7 +137,19 @@ class IntersectionHandler(SearchBoundsHandler):
                 hits = list(ifilter(pred, candidates))
             else:
                 hits = list(candidates)
-            results = hits[start:start+count]
+            def score(ob):
+                g = geom(ob)
+                r = region
+                if r is None:
+                    r = asShape(box2poly(coords))
+                # local scaling might be better, degree units are implicit
+                # in this value
+                k = 0.2
+                d = r.distance(g)
+                return int(math.exp(-d/k) * 1000)
+            results = [dict(
+                x.items() + [('score', score(x))]
+                ) for x in islice(hits, start, start+count)]
             self.set_status(200)
             self.set_header('content-type', 'application/json')
             self.write(dumps(
@@ -171,10 +183,11 @@ class NearestHandler(SearchBoundsHandler):
                 r = region
                 if r is None:
                     r = asShape(box2poly(coords))
-                    # local scaling might be better, degree units are implicit
-                    # in this value
-                    k = 0.2
-                return int(math.exp(-r.distance(g)/k) * 1000)
+                # local scaling might be better, degree units are implicit
+                # in this value
+                k = 0.2
+                d = r.distance(g)
+                return int(math.exp(-d/k) * 1000)
             results = [dict(
                 x.items() + [('score', score(x))]
                 ) for x in islice(hits, start, start+count)]
@@ -213,12 +226,22 @@ class DistanceHandler(tornado.web.RequestHandler):
             coords = (x-d, y-d, x+d, y+d)
             candidates = self.application.index.intersection(coords)
             # Now filter geometrically
-            region = Point(x, y).buffer(d)
+            region = Point(x, y)
             def pred(ob):
                 g = geom(ob)
                 return region.distance(g) <= d
             hits = list(ifilter(pred, candidates))
-            results = hits[start:start+count]
+            def score(ob):
+                g = geom(ob)
+                r = region
+                # local scaling might be better, degree units are implicit
+                # in this value
+                k = 0.2
+                d = r.distance(g)
+                return int(math.exp(-d/k) * 1000)
+            results = [dict(
+                x.items() + [('score', score(x))]
+                ) for x in islice(hits, start, start+count)]
             self.set_status(200)
             self.set_header('content-type', 'application/json')
             self.write(dumps(
