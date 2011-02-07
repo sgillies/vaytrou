@@ -8,7 +8,8 @@ class ConflictError(Exception):
     pass
 
 def key(o):
-    return (o.get('id') or str(uuid.uuid4()), tuple(o['bbox']))
+    # TODO: remove fallback on uuid?
+    return (str(o.get('id')) or str(uuid.uuid4()), tuple(o['bbox']))
 
 class ChangeSet(object):
     """Atomic group of items to be indexed or unindexed
@@ -48,7 +49,7 @@ class BaseIndex(object):
     
     Deals in GeoJSON-like dicts we will call ``items``, like:
 
-      {'id': 'db441f41-ec34-40fb-9f62-28b5a9f2f0e5',    # required
+      {'id': 'places/42',                               # required
        'bbox': (0.0, 0.0, 1.0, 1.0),                    # recommended
        'geometry':                                      # required
          {'type': 'LineString', 'coordinates': ((0.0, 0.0), (1.0, 1.0))},
@@ -56,9 +57,9 @@ class BaseIndex(object):
        ... }
 
     """
-    def intid(self, item):
-        """Return a unique integer id for the item"""
-        raise NotImplementedError
+    def itemid(self, item):
+        """Return a unique string id for the item"""
+        return str(item.get('id'))
     def bbox(self, item):
         """Return a (minx, miny, maxx, maxy) tuple for the item"""
         return bbox(item)
@@ -69,7 +70,7 @@ class BaseIndex(object):
         """Return an iterator over the nearest N=limit items to the bbox"""
         raise NotImplementedError
     def index_item(self, itemid, bbox, item):
-        """Index item using unique integer itemid and bbox as key"""
+        """Index item using unique string itemid and bbox as key"""
         raise NotImplementedError
     def unindex_item(self, itemid, bbox):
         """Unindex the item with (itemid, bbox) as key"""
@@ -85,10 +86,10 @@ class BaseIndex(object):
         # play additions and deletions
         try:
             for a in changeset.additions:
-                self.index_item(self.intid(a), self.bbox(a), a)
+                self.index_item(self.itemid(a), self.bbox(a), a)
                 changeset.additions_made.append(a)
             for d in changeset.deletions:
-                self.unindex_item(self.intid(d), self.bbox(d))
+                self.unindex_item(self.itemid(d), self.bbox(d))
                 changeset.deletions_made.append(d)
         except (IndexingError, UnindexingError):
             # undo
@@ -96,10 +97,10 @@ class BaseIndex(object):
             try:
                 undone_additions[:] = [
                     m for m in changeset.additions_made \
-                    if not self.unindex_item(self.intid(m), self.bbox(m))]
+                    if not self.unindex_item(self.itemid(m), self.bbox(m))]
                 undone_deletions[:] = [
                     n for n in changeset.deletions_made \
-                    if not self.index_item(self.intid(n), self.bbox(n), n)]
+                    if not self.index_item(self.itemid(n), self.bbox(n), n)]
             except (IndexingError, UnindexingError):
                 raise UnrecoveredBatchError(
                     "Index state not recovered.", 

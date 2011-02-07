@@ -81,18 +81,32 @@ class MainHandler(tornado.web.RequestHandler):
     def post(self):
         try:
             data = loads(self.request.body)
-            changeset = ChangeSet(
-                additions=data.get('index'), deletions=data.get('unindex'))
-            self.application.index.batch(changeset)
+            # Need to come up with a better way here? ...
+            if data.get('clear'):
+                name = self.application.index.name
+                rtree_filename = self.application.index.fwd.properties.filename
+                index = self.application.index
+                index.close()
+                import transaction
+                index.bwd.clear()
+                index.keys.clear()
+                index.intids.clear()
+                index.ids.clear()
+                transaction.commit()
+                index.fwd = Rtree(rtree_filename, overwrite=True)
+            else:
+                changeset = ChangeSet(
+                    additions=data.get('index'), deletions=data.get('unindex'))
+                self.application.index.batch(changeset)
             self.application.index.commit()
             self.set_status(200)
             self.set_header('content-type', 'application/json')
-            self.write(dumps(dict(msg='Batch success')))
+            self.write(dumps(dict(msg='Success')))
         except (BatchError, ConflictError) as error:
             self.set_status(409)
             self.set_header('content-type', 'application/json')
             self.write(dumps(dict(msg=str(error))))
-        except:            
+        except:
             raise
 
 class SearchBoundsHandler(tornado.web.RequestHandler):
@@ -277,7 +291,7 @@ class MultipleItemsHandler(tornado.web.RequestHandler):
             self.set_status(200)
             self.set_header('content-type', 'application/json')
             items = self.application.index.items(fid)
-            self.write(dumps(dict(id=fid, items=[items])))
+            self.write(dumps(dict(id=fid, items=items)))
         except:
             raise
 
@@ -322,6 +336,7 @@ def make_app(environ, argv1=None):
     index = finder(environ)
     index.fwd = Rtree('%s/%s/var/vrt1' % (options.data, name))
     setattr(index, 'name', name)
+    setattr(index, 'data', options.data)
 
     return Application(index, [
         (r'/', MainHandler),

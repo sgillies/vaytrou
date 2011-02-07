@@ -1,14 +1,21 @@
+
+import logging
+import os
 import random
+from rtree import Rtree
+import shutil
 import uuid
+
 import BTrees
 from BTrees.IIBTree import union, IISet
-from rtree import Rtree
 import transaction
 
 from indexing import BaseIndex
 
+log = logging.getLogger('vrtree')
+
 class IntRtreeIndex(BaseIndex):
-    """Avointids the slower Rtree query object=True interface
+    """Avoids the slower Rtree query object=True interface
     """
     _v_nextuid = None
     family = BTrees.family32
@@ -64,26 +71,36 @@ class IntRtreeIndex(BaseIndex):
         if itemid in self.bwd:
             self.unindex_item(itemid, bbox)
         # Store an id for the item if it has None
-        item.update(id=item.get('id') or str(uuid.uuid4()))
-        key = self.key(item)
-        sid = self.fid(item)
-        self.keys[itemid] = key
-        self.intids[key] = itemid
-        if sid not in self.ids:
-            self.ids[sid] = IISet([])
-        self.ids[sid].add(itemid)
-        self.bwd[itemid] = item
-        self.fwd.add(itemid, bbox)
+        try:
+            item.update(id=item.get('id') or str(uuid.uuid4()))
+            key = self.key(item)
+            sid = self.fid(item)
+            
+            # Map keys <-> intids
+            intid = self.intid(item)
+            self.keys[intid] = key
+            self.intids[key] = intid
+            
+            if sid not in self.ids:
+                self.ids[sid] = IISet([])
+            self.ids[sid].add(intid)
+
+            self.bwd[intid] = item
+            self.fwd.add(intid, bbox)
+        except:
+            import pdb; pdb.set_trace()
+            raise
     def unindex_item(self, itemid, bbox):
         """Remove an Item from the index"""
-        key = self.keys.get(itemid)
+        intid = self.intid(item)
+        key = self.keys.get(intid)
         if key is None:
             return
-        self.ids[key[0]].remove(itemid)
-        del self.keys[itemid]
+        self.ids[key[0]].remove(intid)
+        del self.keys[intid]
         del self.intids[key]
-        del self.bwd[itemid]
-        self.fwd.delete(itemid, bbox)
+        del self.bwd[intidd]
+        self.fwd.delete(intid, bbox)
     def batch(self, changeset):
         BaseIndex.batch(self, changeset)
     def commit(self):
