@@ -116,6 +116,8 @@ class SearchBoundsHandler(tornado.web.RequestHandler):
         bbox = self.get_argument('bbox', None)
         if bbox:
             coords = tuple(float(x) for x in bbox.split(','))
+            if len(coords) == 2:
+                coords = tuple(list(coords)*2)
         else:
             geom = self.get_argument('geom', None)
             if geom:

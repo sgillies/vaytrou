@@ -92,14 +92,14 @@ class IntRtreeIndex(BaseIndex):
             raise
     def unindex_item(self, itemid, bbox):
         """Remove an Item from the index"""
-        intid = self.intid(item)
+        intid = int(itemid)
         key = self.keys.get(intid)
         if key is None:
             return
         self.ids[key[0]].remove(intid)
         del self.keys[intid]
         del self.intids[key]
-        del self.bwd[intidd]
+        del self.bwd[intid]
         self.fwd.delete(intid, bbox)
     def batch(self, changeset):
         BaseIndex.batch(self, changeset)
