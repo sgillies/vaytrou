@@ -259,8 +259,8 @@ class DistanceHandler(tornado.web.RequestHandler):
                 d = r.distance(g)
                 return int(math.exp(-d/k) * 1000)
             results = [dict(
-                x.items() + [('score', score(x))]
-                ) for x in islice(hits, start, start+count)]
+                hit.items() + [('score', score(hit))]
+                ) for hit in islice(hits, start, start+count)]
             self.set_status(200)
             self.set_header('content-type', 'application/json')
             self.write(dumps(
