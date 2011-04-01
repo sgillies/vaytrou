@@ -5,7 +5,7 @@ import os
 
 from repoze.zodbconn.finder import PersistentApplicationFinder
 from rtree import Rtree
-from shapely.geometry import asShape, Point
+from shapely.geometry import asShape, box, Point
 from shapely import wkt
 from simplejson import dumps, loads
 from tornado.options import define, options
@@ -275,6 +275,51 @@ class DistanceHandler(tornado.web.RequestHandler):
         except:
             raise
 
+class WithinHandler(SearchBoundsHandler):
+    """Find objects that are tangential and non tangential proper parts of the
+    specified region."""
+    def get(self):
+        '''Perform within search'''
+        try:
+            coords, region = self.parse_coords()
+            # Paging args
+            start = int(self.get_argument('start', '0'))
+            count = int(self.get_argument('count', '0')) or options.page_size
+            if count > options.max_page_size:
+                count = options.max_page_size
+            # Query
+            candidates = self.application.index.intersection(coords)
+            b = box(*coords)
+            def pred(item):
+                g = geom(item)
+                return b.contains(g)
+            hits = list(ifilter(pred, candidates))
+            def score(ob):
+                g = geom(ob)
+                r = region
+                if r is None:
+                    r = asShape(box2poly(coords))
+                # local scaling might be better, degree units are implicit
+                # in this value
+                k = 0.2
+                d = r.distance(g)
+                return int(math.exp(-d/k) * 1000)
+            results = [dict(
+                x.items() + [('score', score(x))]
+                ) for x in islice(hits, start, start+count)]
+            self.set_status(200)
+            self.set_header('content-type', 'application/json')
+            self.write(dumps(
+                dict(
+                    bbox=coords, 
+                    start=start, 
+                    count=len(results), 
+                    hits=len(hits), 
+                    items=results)
+                ))
+        except:
+            raise
+
 class SingleItemHandler(tornado.web.RequestHandler):
     def get(self, fid, minx, miny, maxx, maxy):
         '''Return representation of a stored item using its (id, bbox) key'''
@@ -345,6 +390,7 @@ def make_app(environ, argv1=None):
         (r'/intersection/?', IntersectionHandler),
         (r'/nearest/?', NearestHandler),
         (r'/distance/?', DistanceHandler),
+        (r'/within/?', WithinHandler),
         (r'/item/([-\w]+);([-0-9\.]+),([-0-9\.]+),([-0-9\.]+),([-0-9\.]+)', 
          SingleItemHandler),
         (r'/items/([-\w]+)', MultipleItemsHandler)
