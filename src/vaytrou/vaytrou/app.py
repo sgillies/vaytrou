@@ -16,7 +16,7 @@ from indexing import BatchError, ChangeSet, ConflictError
 from vrtree import VIntRtreeIndex
 
 define('data', default=None, help='Data storage directory')
-define('port', default=8888, help='Server port')
+define('port', type=int, default=8888, help='Server port')
 define('page_size', type=int, default=20, help='Search result page size')
 define('max_page_size', type=int, default=100, help='Maximum search result page size')
 define('max_nearest_limit', type=int, default=20, help='Maximum limit for nearest neighbor search')
@@ -373,10 +373,14 @@ def make_app(environ, argv1=None):
     parse_command_line([])
 
     # Load command line options over Tornado options
-    for k in options:
-        v = getattr(opts, k, None)
-        if v is not None:
-            options[k].set(v)
+    for k, v in options.items():
+        optv = getattr(opts, k, None)
+        if optv is not None:
+            try:
+                setattr(options, k, type(v)(optv))
+            except:
+                import pdb; pdb.set_trace()
+                raise
 
     finder = PersistentApplicationFinder(
         'file://%s/%s/var/Data.fs' % (options.data, name), appmaker)

@@ -1,3 +1,7 @@
+0.3 (2013-06-21)
+----------------
+- Tornado's changed its options parsing a bit and Vaytrou adjusts.
+
 0.2 (2011-02-23)
 ----------------
 - Write out `lon` parameter correctly in `distance` response.
